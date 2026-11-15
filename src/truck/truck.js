@@ -3,7 +3,8 @@ import { I_LANES, interSet, makeCar, roadSet } from '../scenery/road.js';
 import { makePerson, walkPose } from '../people/people.js';
 import { BLD, buildings } from '../scenery/buildings.js';
 import { sfx } from '../audio/audio.js';
-import { blend, c01, clockT, crash, emitPuff, setCrash, jrPhase, lerp, on, rig, say, sm, truckSpeed } from '../game/core.js';
+import { S, c01, lerp, rig, say, sm } from '../game/state.js';
+import { emitPuff } from '../game/core.js';
 
 // ---------- traffic ----------
 // The big rig stays put and the world slides past, so each car moves at (its speed - our speed).
@@ -20,12 +21,12 @@ addCar(roadSet, 'sedan', 0, 1, 10, 34, CAR_COLORS[5]);
 [['sedan', -20, 3.5], ['suv', 14, 2.5], ['van', 45, 2]].forEach(([k, z, dv], i) => addCar(interSet, k, I_LANES.ours[1], 1, 16 + dv, z, CAR_COLORS[(i * 3 + 1) % 8]));
 addCar(interSet, 'bus', I_LANES.ours[0], 1, 16, 30, 0xf2b81c);
 [['sedan', 0], ['pickup', 25], ['suv', -30], ['sedan', 50]].forEach(([k, z], i) => addCar(interSet, k, I_LANES.theirs[i % 2], -1, 15 + i * 1.5, z, CAR_COLORS[(i * 3 + 2) % 8]));
-let flow = 1;                       // the crash itself lives in game/core.js (setCrash)
+let flow = 1;                       // the crash itself is S.crash (game/state.js)
 function moveTraffic(dt) {
-  flow += ((on.wreck ? 0 : 1) - flow) * Math.min(1, dt * 2);               // everybody stops for a wreck
+  flow += ((S.on.wreck ? 0 : 1) - flow) * Math.min(1, dt * 2);               // everybody stops for a wreck
   for (const c of cars) {
-    if (crash && crash.car === c) continue;
-    let rel = c.dir * c.v * flow - truckSpeed;
+    if (S.crash && S.crash.car === c) continue;
+    let rel = c.dir * c.v * flow - S.truckSpeed;
     if (c.dir > 0 && c.x === 0) rel = 0;                                    // the car ahead in our lane keeps its distance
     c.z += rel * dt; if (c.z < -75) c.z += 150; if (c.z > 75) c.z -= 150;
     c.g.position.set(c.x, 0, c.z); c.g.rotation.set(0, c.dir > 0 ? 0 : Math.PI, 0);
@@ -40,7 +41,7 @@ const RIG = { x: 1.05, zMin: -11.5, zMax: 4.3 };
 const veer = { x: 0, yaw: 0 };
 let crashCount = 0;
 const _w = new THREE.Vector3();
-function activeSet() { return (blend.inter || 0) > 0.5 ? interSet : roadSet; }
+function activeSet() { return (S.blend.inter || 0) > 0.5 ? interSet : roadSet; }
 function startCrash() {
   const wantBld = crashCount % 2 === 1; crashCount++;
   if (wantBld && startBuildingCrash()) return;
@@ -66,11 +67,11 @@ function startCarCrash() {
   if (away.lengthSq() < 0.01) away.set(Math.sign(P0.x) || 1, 0, 0);
   away.applyAxisAngle(new THREE.Vector3(0, 1, 0), (R() - 0.5) * 1.2);
   const roll = bad ? 0 : R() < 0.5 ? Math.PI : Math.PI / 2 * (R() < 0.5 ? 1 : -1);
-  setCrash({ type: 'car', car: best, set, t: 0, hit: false, back: false, P0, yaw0: best.g.rotation.y, impact, bad,
+  S.crash = { type: 'car', car: best, set, t: 0, hit: false, back: false, P0, yaw0: best.g.rotation.y, impact, bad,
     end: impact.clone().addScaledVector(away, bad ? 2.5 : 4 + R() * 5), spin: (R() < 0.5 ? -1 : 1) * (bad ? 0.8 : 2 + R() * 4), roll, pitch: bad ? 0 : (R() - 0.5) * 1.2,
-    dir: Math.atan2(-away.x, -away.z), dist: P0.distanceTo(impact) });
-  crash.approach = THREE.MathUtils.clamp(crash.dist / 14, 0.5, 1.4);
-  crash.hitT = crash.approach;
+    dir: Math.atan2(-away.x, -away.z), dist: P0.distanceTo(impact) };
+  S.crash.approach = THREE.MathUtils.clamp(S.crash.dist / 14, 0.5, 1.4);
+  S.crash.hitT = S.crash.approach;
   say(bad ? 'Uh oh! A bad guy is driving straight at the cab!' : 'Look out! That ' + (best.kind === 'bus' ? 'bus' : best.kind === 'van' ? 'van' : best.kind === 'pickup' ? 'pickup' : 'car') + ' is swerving!', 1.6);
   sfx.skid();
   return true;
@@ -85,15 +86,15 @@ function startBuildingCrash() {
     if (z > -1 && z < bz) { bz = z; best = B; }
   }
   if (!best) return false;
-  setCrash({ type: 'bld', B: best, set, t: 0, wait: true, hit: false, back: false, hitT: 1.15, dir: Math.PI / 2,
-    breakup: best.b.userData.blocks.map(() => [(Math.random() - 0.5) * 1.2, Math.random() * 0.6, (Math.random() - 0.5) * 1.6, (Math.random() - 0.5) * 0.9]) });
+  S.crash = { type: 'bld', B: best, set, t: 0, wait: true, hit: false, back: false, hitT: 1.15, dir: Math.PI / 2,
+    breakup: best.b.userData.blocks.map(() => [(Math.random() - 0.5) * 1.2, Math.random() * 0.6, (Math.random() - 0.5) * 1.6, (Math.random() - 0.5) * 0.9]) };
   say('Whoa! The truck is heading for the ' + (BLD[best.b.userData.kind] && best.b.userData.kind === 'store' ? 'general store' : best.b.userData.kind) + '!', 2);
   sfx.skid();
   return true;
 }
 function hitNow() {
-  const c = crash;
-  say(jrPhase ? 'CRASH! Good thing Jr. was flying!' : c && c.type === 'bld' ? 'CRASH! The building falls right on the truck! Everybody is safe' : c && c.bad ? 'CRASH! The airbag pops and the driver is safe!' : 'CRASH! Airbag pops! Everybody is safe, but what a mess!', 2.8);
+  const c = S.crash;
+  say(S.jrPhase ? 'CRASH! Good thing Jr. was flying!' : c && c.type === 'bld' ? 'CRASH! The building falls right on the truck! Everybody is safe' : c && c.bad ? 'CRASH! The airbag pops and the driver is safe!' : 'CRASH! Airbag pops! Everybody is safe, but what a mess!', 2.8);
   sfx.crash(); for (let i = 0; i < 10; i++) setTimeout(() => emitPuff(true, null, 0x9a9690), i * 60);
 }
 
@@ -129,7 +130,7 @@ function runPolice(c) {
     if (P.car.parent !== set) set.add(P.car, P.officer);
     const k = sm(c01(tp / 3)), startZ = i === 0 ? -55 : 70;                   // one from behind, one from up ahead
     P.car.visible = true; P.car.position.set(spots[i][0], 0, lerp(startZ, spots[i][1], k)); P.car.rotation.set(0, i === 0 ? 0 : Math.PI, 0);
-    const flash = Math.sin(clockT * 14 + i) > 0; P.red.emissiveIntensity = flash ? 3 : 0.2; P.blue.emissiveIntensity = flash ? 0.2 : 3;
+    const flash = Math.sin(S.clockT * 14 + i) > 0; P.red.emissiveIntensity = flash ? 3 : 0.2; P.blue.emissiveIntensity = flash ? 0.2 : 3;
     if (tp > 3.2) {                                                           // officers hop out and walk over
       P.officer.visible = true;
       const door = [spots[i][0] - 0.9, spots[i][1] + (i === 0 ? 0.3 : -0.3)];
@@ -138,8 +139,8 @@ function runPolice(c) {
       const w = c01((tp - 3.2) / 2.2);
       const x = lerp(door[0], tx, sm(w)), z = lerp(door[1], tz, sm(w));
       const yaw = w < 1 ? Math.atan2(tx - door[0], tz - door[1]) : (c.bad && i === 1 ? -Math.PI / 2 : -Math.PI / 2);
-      placeFig(P.officer, x, z, yaw, w > 0 && w < 1 ? 1 : 0, clockT * 9);
-      if (w >= 1 && !(c.bad && i === 1)) { P.officer.userData.arms[1].rotation.x = -1.2 - Math.sin(clockT * 6) * 0.3; }   // waving everyone safe
+      placeFig(P.officer, x, z, yaw, w > 0 && w < 1 ? 1 : 0, S.clockT * 9);
+      if (w >= 1 && !(c.bad && i === 1)) { P.officer.userData.arms[1].rotation.x = -1.2 - Math.sin(S.clockT * 6) * 0.3; }   // waving everyone safe
     }
   });
   if (c.bad) {                                                                // bad guy climbs out, runs, gets caught
@@ -149,7 +150,7 @@ function runPolice(c) {
       badGuy.visible = true;
       const runK = sm(c01(tb / 3.5)), caught = tp > 5.4;
       const x = lerp(c.end.x + 0.9, badSpot.x, runK), z = lerp(c.end.z, badSpot.z, runK);
-      placeFig(badGuy, x, z, caught ? Math.PI / 2 : Math.atan2(badSpot.x - c.end.x, badSpot.z - c.end.z), runK < 1 ? 1.4 : 0, clockT * 13);
+      placeFig(badGuy, x, z, caught ? Math.PI / 2 : Math.atan2(badSpot.x - c.end.x, badSpot.z - c.end.z), runK < 1 ? 1.4 : 0, S.clockT * 13);
       if (caught) { badGuy.userData.arms[0].rotation.x = badGuy.userData.arms[1].rotation.x = -2.6; }     // hands up!
     }
   }
@@ -171,7 +172,7 @@ function runWalkers(dt) {
     const B = w.B, bz = B.z, faceX = B.b.position.x, sx = B.walkX;
     if (!B.set.visible) continue;
     // loop: sidewalk ahead of the door -> door -> inside -> out -> past the door -> back again
-    const t = ((clockT * w.speed + w.off) % WALK_T + WALK_T) % WALK_T;
+    const t = ((S.clockT * w.speed + w.off) % WALK_T + WALK_T) % WALK_T;
     let x, z, yaw, mv = 1, vis = true;
     const zA = bz + 5, zB = bz - 5, door = bz + (B.b.userData.d && 0);
     if (t < 4) { x = sx; z = lerp(zA, door, t / 4); yaw = Math.PI; }
@@ -181,11 +182,11 @@ function runWalkers(dt) {
     else if (t < 12) { x = sx; z = lerp(door, zB, (t - 8.7) / 3.3); yaw = Math.PI; }
     else { x = sx; z = lerp(zB, zA, (t - 12) / 4); yaw = 0; }
     // the building about to fall: everybody runs to safety first
-    if (crash && crash.type === 'bld' && crash.B === B) {
-      const k = sm(c01((crash.wait ? 0 : crash.t + 0.6) / 1.2)), safeZ = bz + (z >= bz ? 9 : -9);
+    if (S.crash && S.crash.type === 'bld' && S.crash.B === B) {
+      const k = sm(c01((S.crash.wait ? 0 : S.crash.t + 0.6) / 1.2)), safeZ = bz + (z >= bz ? 9 : -9);
       vis = true; x = lerp(x, sx + 0.3, k); z = lerp(z, safeZ, k); yaw = k > 0 && k < 1 ? (safeZ > bz ? 0 : Math.PI) : -Math.PI / 2 + Math.PI; mv = k < 1 ? 1.5 : 0;
     }
-    w.p.visible = vis; placeFig(w.p, x, z, yaw, mv, clockT * 9 * w.speed + w.off);
+    w.p.visible = vis; placeFig(w.p, x, z, yaw, mv, S.clockT * 9 * w.speed + w.off);
   }
 }
 
@@ -193,11 +194,11 @@ const TUMBLE = 1.6;
 function runCrash(dt) {
   veer.x = 0; veer.yaw = 0;
   rig.airbag.visible = false;
-  if (!crash) { runPolice(null); return; }
-  const c = crash;
-  if (!on.wreck) c.back = true;
+  if (!S.crash) { runPolice(null); return; }
+  const c = S.crash;
+  if (!S.on.wreck) c.back = true;
   if (c.wait) {                                                              // rolling up beside the building
-    if (c.back) { setCrash(null); runPolice(null); return; }
+    if (c.back) { S.crash = null; runPolice(null); return; }
     let hitB = null;                                                         // whichever building rolls up beside the trailer first
     for (const B of buildings) { if (B.set !== c.set) continue; B.b.getWorldPosition(_w); if (_w.z <= -3.5 && _w.z > -9) { hitB = B; break; } }
     if (!hitB) { runPolice(null); return; }
@@ -215,7 +216,7 @@ function runCrash(dt) {
   else rig.airbag.scale.setScalar(0.001);
   if (c.type === 'car') {
     const g = c.car.g, ud = g.userData;
-    if (c.back && c.t <= 0) { g.position.copy(c.P0); setCrash(null); runPolice(null); return; }
+    if (c.back && c.t <= 0) { g.position.copy(c.P0); S.crash = null; runPolice(null); return; }
     if (c.t < c.approach) {                                                  // swerving in
       const u = Math.max(0, c.t) / c.approach, e = u * u;
       g.position.lerpVectors(c.P0, c.impact, e);
@@ -234,7 +235,7 @@ function runCrash(dt) {
     }
   } else {                                                                   // the building topples over onto the rig
     const ud = c.B.b.userData;
-    if (c.back && c.t <= 0) { ud.pivot.rotation.set(0, 0, 0); ud.blocks.forEach(b => { b.rotation.set(0, 0, 0); b.position.x = 0; b.position.z = 0; }); restoreBlocks(ud); setCrash(null); runPolice(null); return; }
+    if (c.back && c.t <= 0) { ud.pivot.rotation.set(0, 0, 0); ud.blocks.forEach(b => { b.rotation.set(0, 0, 0); b.position.x = 0; b.position.z = 0; }); restoreBlocks(ud); S.crash = null; runPolice(null); return; }
     const v = sm(c01(c.t / 0.7));
     veer.x = c.vx * v; veer.yaw = -0.14 * Math.sin(Math.PI * c01(c.t / 1.4)) - 0.04 * v;
     const f = c01((c.t - 0.35) / 1.25), fall = f * f;                        // slow tip, then faster and faster
@@ -276,7 +277,7 @@ function wreckPose(w) {
   rig.bot.updateMatrixWorld(true);
   _c.set(0, 0, -3.5).applyMatrix4(rig.joints[0].matrixWorld);             // middle of the whole rig
   const moves = fly.map(f => {
-    if (f.j === rig.jr.j && jrPhase) return null;                          // Jr. is up in the sky, safe
+    if (f.j === rig.jr.j && S.jrPhase) return null;                          // Jr. is up in the sky, safe
     f.j.getWorldPosition(_v);
     let ang = Math.atan2(_v.x - _c.x, _v.z - _c.z);
     ang += (f.a - Math.PI) * 0.5 * f.mix;

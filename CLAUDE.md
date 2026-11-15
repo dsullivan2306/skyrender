@@ -49,14 +49,15 @@ A transforming toy built for Jasper (Daniel's son). One machine changes between 
 - `airport/hall.js`: builds `hallSet`, the airport interior.
 - `home/home.js`: builds `homeSet`, the garage and robot house.
 - `audio/audio.js`: `tone`, `noise`, `play` and the `sfx` object.
-- `game/core.js`: the toy itself. Its state is shared by almost everything in it, so it stays one module.
+- `game/state.js`: the shared state `S` (`S.plan`, `S.planeT`, `S.on.lights`, `S.parkState`, ...), the machine itself (`rig`, `flyer`), helpers (`ease`, `sm`, `c01`, `wrap`, `lerpJ`), `say`, `settled`, `airborne`, and `linked` (truck and cabin pieces the loop calls). Any module changes the toy by writing to `S`; no setters. It runs right before `core.js`, so the machine is built at the same moment as always.
+- `game/core.js`: the toy itself: buttons, captions, the main loop.
   - State, `startMorph` and `go`, captions, mode and season buttons, day and night.
   - `runHall` (airport interior: "See inside airport", "Go inside airport").
   - `startPark` / `runPark` (garage and robot house; plane mode redirects to boarding instead).
   - `ACTIONS`: per-mode action buttons. `doAction`, `applyToggles` (overlays applied after `poseRig`), `on[id]` / `blend[id]`.
   - Camera drag, steam puffs, Skyrender Jr. (`flyJr`).
   - `function frame()`: the main loop. The camera fit is at the end. When `cab.active` is true it renders `cabinScene` instead of the main scene.
-  - `link()` receives the truck and cabin pieces the loop calls. Other modules change core state through setters (`setCrash`, `setOn`, `setPlaneT`), because an imported variable can only be read.
+  - `link()` puts the truck and cabin pieces the loop calls onto `linked`.
 - `truck/truck.js`: traffic, buildings in a crash, crash timeline (a pure function of `crash.t`, so it can rewind), police, bad guy, airbag, sidewalk walkers.
 - `cabin/cabin.js`: INSIDE SKYRENDER, the plane cabin world.
   - `cabinScene` and `cabinCam`: its own scene and camera.
@@ -67,7 +68,7 @@ A transforming toy built for Jasper (Daniel's son). One machine changes between 
 
 Outside `src/`: `public/` is copied as is into the built page. It holds `manifest.webmanifest` (home screen install) and the app icon: `icon.svg` is the team crest from `rig/textures.js`, and `npm run icons` redraws `icon-180.png` (iPad), `icon-192.png` and `icon-512.png` from it (`scripts/make-icons.js`).
 
-Adding a feature: put new code in the module for that world. If the main loop has to call it, export it and add it to `link()` in `game/core.js` (or, if it only reads core state, import from `game/core.js`).
+Adding a feature: put new code in the module for that world. Shared values live on `S` in `game/state.js`. If the main loop has to call a truck or cabin function, export it from there and it reaches the loop through `link()`.
 
 ## Planned next steps (in order)
 

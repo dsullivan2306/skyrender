@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { renderer, scene, stage } from '../world/setup.js';
 import { makePerson, makeSuitcase, walkPose } from '../people/people.js';
 import { noise, play, sfx, tone } from '../audio/audio.js';
-import { buildActions, clockT, on, plan, planeT, rig, say, setOn, setPlaneT, sm } from '../game/core.js';
+import { S, rig, say, sm } from '../game/state.js';
+import { buildActions } from '../game/core.js';
 
 // =====================================================================================
 // INSIDE SKYRENDER: a whole little world inside the plane.
@@ -228,9 +229,9 @@ const screen = (x, y, draw) => {
   const s = { c, g: c.getContext('2d'), t, draw, mode: 0 }; screens.push(s); return s;
 };
 const screens = [];
-const drawHorizon = (g, s) => { const p = cabRoot.rotation.x * 200, roll = cab.shake * Math.sin(clockT * 20) * 0.3; g.save(); g.translate(64, 64); g.rotate(roll); g.fillStyle = '#3a7bd5'; g.fillRect(-100, -100, 200, 100 + p); g.fillStyle = '#8a5a2a'; g.fillRect(-100, p, 200, 100); g.strokeStyle = '#fff'; g.lineWidth = 2; for (let k = -2; k <= 2; k++) { g.beginPath(); g.moveTo(-14, p + k * 14); g.lineTo(14, p + k * 14); g.stroke(); } g.restore(); g.strokeStyle = '#f2c94c'; g.lineWidth = 4; g.beginPath(); g.moveTo(30, 64); g.lineTo(56, 64); g.lineTo(64, 72); g.lineTo(72, 64); g.lineTo(98, 64); g.stroke(); };
-const drawMap = (g, s) => { g.fillStyle = '#0d1b24'; g.fillRect(0, 0, 128, 128); if (s.mode) { g.strokeStyle = '#2f8a4a'; for (let r = 20; r < 70; r += 16) { g.beginPath(); g.arc(64, 110, r, Math.PI, 0); g.stroke(); } g.fillStyle = '#4cd84c'; for (let k = 0; k < 6; k++) { g.beginPath(); g.arc(30 + ((k * 37 + clockT * 6) % 70), 50 + (k * 13) % 50, 4 + k % 3, 0, 7); g.fill(); } g.fillStyle = '#f2c94c'; g.fillText('RADAR', 46, 14); return; } g.strokeStyle = '#3aa0ff'; g.lineWidth = 3; g.beginPath(); g.moveTo(20, 110); g.quadraticCurveTo(60, 20, 110, 18); g.stroke(); const u = Math.min(1, cab.flightT / 60); g.fillStyle = '#ffffff'; g.beginPath(); g.arc(20 + 90 * u, 110 - 92 * Math.sin(u * 1.57), 6, 0, 7); g.fill(); g.fillStyle = '#f2c94c'; g.font = '700 12px Arial'; g.fillText('JASPER JCT', 4, 124); g.fillText('SPACEPORT', 70, 12); };
-const drawEngines = (g) => { g.fillStyle = '#111'; g.fillRect(0, 0, 128, 128); for (const [cx, k] of [[34, 0], [94, 1]]) { g.strokeStyle = '#555'; g.lineWidth = 6; g.beginPath(); g.arc(cx, 54, 24, Math.PI * 0.75, Math.PI * 2.25); g.stroke(); const v = 0.15 + cab.speed / 60 + Math.sin(clockT * 3 + k) * 0.02; g.strokeStyle = '#4cd84c'; g.beginPath(); g.arc(cx, 54, 24, Math.PI * 0.75, Math.PI * 0.75 + Math.PI * 1.5 * Math.min(1, v)); g.stroke(); } g.fillStyle = '#f2f2ee'; g.font = '700 13px Arial'; g.fillText('ALT ' + Math.round(cab.alt * 100), 14, 104); g.fillText('SPD ' + Math.round(cab.speed * 6), 14, 120); };
+const drawHorizon = (g, s) => { const p = cabRoot.rotation.x * 200, roll = cab.shake * Math.sin(S.clockT * 20) * 0.3; g.save(); g.translate(64, 64); g.rotate(roll); g.fillStyle = '#3a7bd5'; g.fillRect(-100, -100, 200, 100 + p); g.fillStyle = '#8a5a2a'; g.fillRect(-100, p, 200, 100); g.strokeStyle = '#fff'; g.lineWidth = 2; for (let k = -2; k <= 2; k++) { g.beginPath(); g.moveTo(-14, p + k * 14); g.lineTo(14, p + k * 14); g.stroke(); } g.restore(); g.strokeStyle = '#f2c94c'; g.lineWidth = 4; g.beginPath(); g.moveTo(30, 64); g.lineTo(56, 64); g.lineTo(64, 72); g.lineTo(72, 64); g.lineTo(98, 64); g.stroke(); };
+const drawMap = (g, s) => { g.fillStyle = '#0d1b24'; g.fillRect(0, 0, 128, 128); if (s.mode) { g.strokeStyle = '#2f8a4a'; for (let r = 20; r < 70; r += 16) { g.beginPath(); g.arc(64, 110, r, Math.PI, 0); g.stroke(); } g.fillStyle = '#4cd84c'; for (let k = 0; k < 6; k++) { g.beginPath(); g.arc(30 + ((k * 37 + S.clockT * 6) % 70), 50 + (k * 13) % 50, 4 + k % 3, 0, 7); g.fill(); } g.fillStyle = '#f2c94c'; g.fillText('RADAR', 46, 14); return; } g.strokeStyle = '#3aa0ff'; g.lineWidth = 3; g.beginPath(); g.moveTo(20, 110); g.quadraticCurveTo(60, 20, 110, 18); g.stroke(); const u = Math.min(1, cab.flightT / 60); g.fillStyle = '#ffffff'; g.beginPath(); g.arc(20 + 90 * u, 110 - 92 * Math.sin(u * 1.57), 6, 0, 7); g.fill(); g.fillStyle = '#f2c94c'; g.font = '700 12px Arial'; g.fillText('JASPER JCT', 4, 124); g.fillText('SPACEPORT', 70, 12); };
+const drawEngines = (g) => { g.fillStyle = '#111'; g.fillRect(0, 0, 128, 128); for (const [cx, k] of [[34, 0], [94, 1]]) { g.strokeStyle = '#555'; g.lineWidth = 6; g.beginPath(); g.arc(cx, 54, 24, Math.PI * 0.75, Math.PI * 2.25); g.stroke(); const v = 0.15 + cab.speed / 60 + Math.sin(S.clockT * 3 + k) * 0.02; g.strokeStyle = '#4cd84c'; g.beginPath(); g.arc(cx, 54, 24, Math.PI * 0.75, Math.PI * 0.75 + Math.PI * 1.5 * Math.min(1, v)); g.stroke(); } g.fillStyle = '#f2f2ee'; g.font = '700 13px Arial'; g.fillText('ALT ' + Math.round(cab.alt * 100), 14, 104); g.fillText('SPD ' + Math.round(cab.speed * 6), 14, 120); };
 const drawFuel = (g) => { g.fillStyle = '#111'; g.fillRect(0, 0, 128, 128); g.fillStyle = '#f2f2ee'; g.font = '700 14px Arial'; g.fillText('FUEL', 46, 18); const f = 0.92 - cab.flightT * 0.002; g.fillStyle = '#3aa0ff'; g.fillRect(20, 110 - 80 * f, 36, 80 * f); g.fillRect(72, 110 - 80 * f, 36, 80 * f); g.strokeStyle = '#888'; g.strokeRect(20, 30, 36, 80); g.strokeRect(72, 30, 36, 80); };
 screen(1.05, 0.02, drawHorizon); screen(0.55, 0.02, drawEngines); const mapScreen = screen(-0.55, 0.02, drawMap); screen(-1.05, 0.02, drawHorizon); screen(0, 0.02, drawFuel);
 // pilots in their seats
@@ -247,7 +248,7 @@ captain.position.set(-0.6, 0.02, 11.72); firstOfficer.position.set(0.6, 0.02, 11
 tappable(captain, () => { say(['Hi Jasper! I am Captain Sky.', 'The captain gives you a thumbs up!', 'Captain: Welcome aboard Skyrender Flight 1!'][Math.floor(Math.random() * 3)], 2.2); reach(captain, 1.0); });
 tappable(firstOfficer, () => { say(['Hi! I am the co-pilot. I help fly the plane.', 'The co-pilot waves hello!', 'Co-pilot: All systems go!'][Math.floor(Math.random() * 3)], 2.2); reach(firstOfficer, 1.0); });
 const reaches = [];
-function reach(p, secs = 0.7) { reaches.push({ p, until: clockT + secs }); }
+function reach(p, secs = 0.7) { reaches.push({ p, until: S.clockT + secs }); }
 // control yokes in front of each pilot
 const yokes = [-0.6, 0.6].map(x => { const y = new THREE.Group(); y.position.set(x, 0.95, 12.35); ck.add(y); cbox(0.06, 0.06, 0.4, CS(0x1d1d1d), 0, 0, -0.2, y); cbox(0.36, 0.06, 0.06, CS(0x1d1d1d), 0, 0.05, 0, y); for (const sx of [-1, 1]) cbox(0.06, 0.16, 0.06, CS(0x1d1d1d), sx * 0.18, 0.1, 0, y); return y; });
 // center pedestal with the throttle levers
@@ -384,7 +385,7 @@ function moveTravelers(dt) {
       T.t += dt * 1.5 / d;
       const k = Math.min(1, T.t); p.position.lerpVectors(a, b, k);
       if (d > 0.02) p.rotation.y = Math.atan2(b.x - a.x, b.z - a.z);
-      walkPose(p, clockT * 9, 1);
+      walkPose(p, S.clockT * 9, 1);
       if (T.t >= 1) { T.leg++; T.t = 0; if (T.leg >= T.path.length - 1) { T.state = 'stowing'; T.t = 0; T.bin.want = 1; } }
     } else if (T.state === 'stowing') {                       // lift the suitcase up into the overhead bin
       T.t += dt;
@@ -406,12 +407,12 @@ function moveTravelers(dt) {
     } else if (T.state === 'seated') {
       p.rotation.y = 0; p.userData.legs[0].rotation.x = p.userData.legs[1].rotation.x = -1.45;
       T.wave = Math.max(0, T.wave - dt);
-      p.userData.arms[1].rotation.x = T.wave > 0 ? -2.6 + Math.sin(clockT * 12) * 0.3 : (cab.served ? -0.9 : 0);
-      p.userData.arms[0].rotation.x = cab.served ? -0.9 + Math.sin(clockT * 4 + T.id) * 0.2 : 0;
-      p.position.y = 0.02 + (cab.shake > 0 ? Math.abs(Math.sin(clockT * 18 + T.id)) * 0.06 * Math.min(1, cab.shake) : 0);
+      p.userData.arms[1].rotation.x = T.wave > 0 ? -2.6 + Math.sin(S.clockT * 12) * 0.3 : (cab.served ? -0.9 : 0);
+      p.userData.arms[0].rotation.x = cab.served ? -0.9 + Math.sin(S.clockT * 4 + T.id) * 0.2 : 0;
+      p.position.y = 0.02 + (cab.shake > 0 ? Math.abs(Math.sin(S.clockT * 18 + T.id)) * 0.06 * Math.min(1, cab.shake) : 0);
     } else if (T.state === 'queue') {
       walkPose(p, 0, 0); p.userData.arms[1].rotation.x = 0.3;
-      p.position.y = 0.02 + Math.abs(Math.sin(clockT * 2 + T.id)) * 0.02;
+      p.position.y = 0.02 + Math.abs(Math.sin(S.clockT * 2 + T.id)) * 0.02;
     }
   }
 }
@@ -465,14 +466,14 @@ function runFlight(dt) {
   cloudGrp.visible = cab.clouds;
   cloudGrp.position.y = 140 - cab.alt * 36;
   for (const c of cloudGrp.children) { c.position.z -= cab.speed * dt * 0.9; if (c.position.z < -450) c.position.z += 900; }
-  taxiJet.position.z = ((clockT * 6) % 300) - 150;
+  taxiJet.position.z = ((S.clockT * 6) % 300) - 150;
   // other planes fly by now and then once we are up high
   if (f === 'cruise' && flyJetT < 0 && Math.random() < dt / 14) { flyJetT = 0; flyJetX = (Math.random() < 0.5 ? -1 : 1) * (18 + Math.random() * 20); }
   if (flyJetT >= 0) { flyJetT += dt; flyJet.visible = true; flyJet.position.set(flyJetX, 2 + Math.sin(flyJetT) * 2, 260 - flyJetT * 70); if (flyJetT > 8) { flyJetT = -1; flyJet.visible = false; } }
   // shakes and wiggles
   cab.shake = Math.max(0, cab.shake - dt);
-  cabRoot.position.y = cab.shake > 0 ? Math.sin(clockT * 23) * 0.04 * Math.min(1, cab.shake) : 0;
-  cabRollZ += ((cab.shake > 0 ? Math.sin(clockT * 7) * 0.04 : 0) - cabRollZ) * Math.min(1, dt * 5); cabRoot.rotation.z = cabRollZ;
+  cabRoot.position.y = cab.shake > 0 ? Math.sin(S.clockT * 23) * 0.04 * Math.min(1, cab.shake) : 0;
+  cabRollZ += ((cab.shake > 0 ? Math.sin(S.clockT * 7) * 0.04 : 0) - cabRollZ) * Math.min(1, dt * 5); cabRoot.rotation.z = cabRollZ;
   cab.engine = Math.min(1, cab.speed / 45);
 }
 
@@ -528,7 +529,7 @@ const boardPilots = [0, 1].map(i => { const p = makePerson({ shirt: 0xf4f4f2, pa
 const noseAt = new THREE.Vector3();
 function startBoarding() {
   if (board.active || cab.active) return;
-  setOn({ size: 'medium' }); buildActions(-1); setPlaneT(0);
+  S.on = { size: 'medium' }; buildActions(-1); S.planeT = 0;
   board.active = true; board.t = 0; board.out = false;
   rig.bot.updateMatrixWorld(true); rig.head.getWorldPosition(noseAt);
   stairs.position.set(0, 0, noseAt.z - 0.2); stairs.rotation.y = 0;
@@ -537,7 +538,7 @@ function startBoarding() {
   say('Time to board! The nose tucks up and the stairs roll in', 2.4);
 }
 function runBoarding(dt) {
-  if (board.active && plan.to !== 0) { board.active = false; fade.style.opacity = '0'; }   // picked another mode mid-boarding: cancel
+  if (board.active && S.plan.to !== 0) { board.active = false; fade.style.opacity = '0'; }   // picked another mode mid-boarding: cancel
   if (!board.active) { board.k = Math.max(0, board.k - dt * 0.8); boardSet.visible = board.k > 0.01; stairs.position.y = -3 * (1 - board.k); return; }
   board.t += dt; const t = board.t;
   board.k = Math.min(1, t / 1.6); boardSet.visible = true; stairs.position.y = -3 * (1 - sm(board.k));
@@ -551,7 +552,7 @@ function runBoarding(dt) {
     else if (u < 2.2) { pos = start.clone().lerp(base, u / 2.2); yaw = Math.atan2(base.x - start.x, base.z - start.z); }
     else if (u < 3.6) { pos = base.clone().lerp(top, (u - 2.2) / 1.4); yaw = Math.PI; }
     else { pos = top; vis = false; yaw = Math.PI; }
-    p.visible = vis; p.position.copy(pos); p.rotation.set(0, yaw, 0); walkPose(p, clockT * 9 + i, u > 0 && u < 3.6 ? 1 : 0);
+    p.visible = vis; p.position.copy(pos); p.rotation.set(0, yaw, 0); walkPose(p, S.clockT * 9 + i, u > 0 && u < 3.6 ? 1 : 0);
   });
   const done = 1.6 + all.length * 0.55 + 3.8;
   if (t > done - 0.6) fade.style.opacity = String(Math.min(1, (t - done + 0.6) / 0.6));
@@ -584,7 +585,7 @@ function exitCabin() {
 // nose tuck: applied after the rig is posed each frame
 function noseTuck() {
   const k = sm(Math.min(1, board.active ? board.t / 1.4 : board.k));
-  if (k > 0.001 && plan.to === 0) rig.head.rotation.x -= 1.15 * k;
+  if (k > 0.001 && S.plan.to === 0) rig.head.rotation.x -= 1.15 * k;
 }
 
 // ---------- pointer: drag to look around, tap things to make them happen ----------
@@ -631,7 +632,7 @@ function updateCabin(dt) {
       const zWant = ROW_Z(stops[idx]) + 0.9; cart.position.z += (zWant - cart.position.z) * Math.min(1, dt * 3);
       for (const L of LETTERS) { const s = seats[stops[idx] + L]; if (s.taken && s.taken.state === 'seated' && !s.food.visible && (cab.foodT - 1.2) % per > 1.0) { s.food.visible = true; play(t => tone(1200, t, 0.05, 'sine', 0.04)); } }
     } else cart.position.z += (9 - cart.position.z) * Math.min(1, dt * 1.5);
-    fa1.position.set(-0.05, 0.02, cart.position.z + 0.55); fa1.rotation.y = Math.PI; walkPose(fa1, clockT * 8, cab.foodT < total - 0.5 ? 0.6 : 0);
+    fa1.position.set(-0.05, 0.02, cart.position.z + 0.55); fa1.rotation.y = Math.PI; walkPose(fa1, S.clockT * 8, cab.foodT < total - 0.5 ? 0.6 : 0);
     if (cab.foodT > total) { cab.foodT = -1; cab.served = true; fa1.position.set(-0.45, 0.02, 9.68); say('Everybody has a snack! Yum!', 2); }
   }
   for (const k in seats) { const s = seats[k], want = s.food.visible ? 0 : -Math.PI / 2; s.tray.rotation.x += (want - s.tray.rotation.x) * Math.min(1, dt * 6); }
@@ -639,14 +640,14 @@ function updateCabin(dt) {
   if (demoT >= 0) { demoT += dt; const a = Math.sin(demoT * 3); fa2.userData.arms[0].rotation.set(-1.5, 0, -0.5 * a); fa2.userData.arms[1].rotation.set(-1.5, 0, 0.5 * a); if (demoT > 4) { demoT = -1; fa2.userData.arms[0].rotation.set(0, 0, 0); fa2.userData.arms[1].rotation.set(0, 0, 0); } }
   // pilots: reach for buttons, coffee, autopilot moving the yokes
   for (const p of [captain, firstOfficer]) { p.userData.arms[0].rotation.x = -0.9; p.userData.arms[1].rotation.x = -0.9; }
-  for (let i = reaches.length - 1; i >= 0; i--) { const r = reaches[i]; if (clockT > r.until) { reaches.splice(i, 1); continue; } r.p.userData.arms[r.p === captain ? 1 : 0].rotation.x = -1.6 - Math.sin(clockT * 10) * 0.15; }
-  yokes.forEach((y, i) => { y.rotation.z = cab.autopilot ? Math.sin(clockT * 1.3) * 0.25 : (cab.shake > 0 ? Math.sin(clockT * 15) * 0.2 : 0); y.position.z = 12.35 + (cab.flight === 'climb' ? -0.06 : 0); });
+  for (let i = reaches.length - 1; i >= 0; i--) { const r = reaches[i]; if (S.clockT > r.until) { reaches.splice(i, 1); continue; } r.p.userData.arms[r.p === captain ? 1 : 0].rotation.x = -1.6 - Math.sin(S.clockT * 10) * 0.15; }
+  yokes.forEach((y, i) => { y.rotation.z = cab.autopilot ? Math.sin(S.clockT * 1.3) * 0.25 : (cab.shake > 0 ? Math.sin(S.clockT * 15) * 0.2 : 0); y.position.z = 12.35 + (cab.flight === 'climb' ? -0.06 : 0); });
   throttles.forEach(t => t.rotation.x += ((cab.flight === 'roll' || cab.flight === 'climb' ? -0.7 : cab.flight === 'cruise' ? -0.45 : 0) - t.rotation.x) * Math.min(1, dt * 3));
   coffeeCups.forEach(c => c.visible = cab.coffee);
-  cab.wipers = Math.max(0, cab.wipers - dt); wipers.forEach((w, i) => { w.rotation.z = cab.wipers > 0 ? Math.sin(clockT * 5 + i) * 0.9 : 0.9; });
+  cab.wipers = Math.max(0, cab.wipers - dt); wipers.forEach((w, i) => { w.rotation.z = cab.wipers > 0 ? Math.sin(S.clockT * 5 + i) * 0.9 : 0.9; });
   lightBeams.visible = cab.lights; ckCeil.visible = over.visible = cab.view === 'cockpit';
   for (const b of ckButtons) { b.lit = Math.max(0, b.lit - dt * 1.5); b.mat.emissiveIntensity = 0.15 + b.lit * 1.6 + (cab.night ? 0.25 : 0); }
-  if (Math.floor(clockT * 10) % 2 === 0) for (const s of screens) { s.draw(s.g, s); s.t.needsUpdate = true; }
+  if (Math.floor(S.clockT * 10) % 2 === 0) for (const s of screens) { s.draw(s.g, s); s.t.needsUpdate = true; }
   // sky, stars, rainbow, party lights
   cab.nightK += ((cab.night ? 1 : 0) - cab.nightK) * Math.min(1, dt * 1.2);
   const n = cab.nightK, hi = Math.min(1, cab.alt / 4);
@@ -658,7 +659,7 @@ function updateCabin(dt) {
   cab.rainbow += ((cab.rainbowOn ? 1 : 0) - cab.rainbow) * Math.min(1, dt * 0.8);
   rainbow.children.forEach(m => m.material.opacity = 0.75 * cab.rainbow); rainbow.visible = cab.rainbow > 0.01;
   cab.party = Math.max(0, cab.party - dt);
-  if (cab.party > 0) cHemi.color.setHSL((clockT * 0.8) % 1, 0.8, 0.65); else cHemi.color.setHex(0xf4f7fa);
+  if (cab.party > 0) cHemi.color.setHSL((S.clockT * 0.8) % 1, 0.8, 0.65); else cHemi.color.setHex(0xf4f7fa);
   // camera
   if (cab.view === 'cabin') {
     cTargetWant.set(0, 0.6, 1.2);
