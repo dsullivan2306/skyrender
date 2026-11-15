@@ -150,6 +150,8 @@ function setSize(val) {
 }
 // Every button answers: doors latch, hydraulics hum, switches click, the sprayer hisses.
 const BTN_SFX = { door: 'latch', mask: 'latch', hatch: 'latch', tdoors: 'latch', cab: 'latch', gear: 'gear', lights: 'switch', lamp: 'switch', smoke: 'switch', arm: 'hydraulic', plow: 'hydraulic', spray: 'spray' };
+const FARM_TALK = [['cow', 'Moo! A cow moos to call her calf'], ['pig', 'Oink oink! Pigs grunt to chat with each other'], ['horse', 'Neigh! A horse whinnies to say hello to its friends']];
+let farmTalk = 0;
 function doAction(a, b) {
   if (!a.press) { S.on[a.id] = !S.on[a.id]; b.setAttribute('aria-pressed', String(S.on[a.id])); }
   const snd = BTN_SFX[a.id]; if (snd === 'switch') sfx.switchOn(!!S.on[a.id]); else if (snd) sfx[snd]();
@@ -160,7 +162,10 @@ function doAction(a, b) {
   if (a.id === 'peek' && S.on.peek && S.planeT > 0) { S.pending = 0; setButtons(); }
   if (a.id === 'board') requestPark();
   if (a.id === 'honk') { S.hop = 1; say('Beep beep!'); sfx.honk(); }
-  if (a.id === 'moo') { say(['Moo! Oink oink! Neigh!', 'Moooo! Oink! Neeeigh!'][Math.random() < 0.5 ? 0 : 1], 2.2); sfx.farm(); for (const a2 of animals) a2.c.userData.hop = 1; }
+  if (a.id === 'moo') {                              // each press, the next animal speaks up and hops
+    const [kind, line] = FARM_TALK[farmTalk++ % FARM_TALK.length];
+    say(line, 2.6); sfx[kind](); for (const a2 of animals) if (a2.c.userData.kind === kind) a2.c.userData.hop = 1;
+  }
   if (a.id === 'plow' && S.plan.to === 5) say(S.on.plow ? 'Plow down! Digging nice straight rows' : 'Plow up', 1.8);
   if (a.id === 'spray') say(S.on.spray ? 'Sprayer booms on. Watering the crops!' : 'Sprayer off', 1.8);
   if (a.id === 'cab') say(S.on.cab ? 'Cab doors open. Hi, farmer!' : 'Cab doors shut', 1.6);

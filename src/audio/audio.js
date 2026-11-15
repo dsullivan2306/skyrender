@@ -56,6 +56,31 @@ function noise(t0, dur, freq, vol, type, pan) {
   g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
   s.connect(f); f.connect(g); g.connect(pan || master); s.start(t0, arnd()); s.stop(t0 + dur + 0.05);
 }
+// A voice, the way animals (and people) make one: a buzz from the throat, shaped by the mouth into vowels.
+// The buzz is a sawtooth whose pitch follows f0; three resonances (formants) follow form, which sets the vowel.
+// f0: [[fraction of dur, Hz], ...]; form: [[fraction of dur, [F1, F2, F3]], ...]; vib in semitones; rough is a growl rate.
+function voice(t, { dur, f0, form, vol, vib = 0, vibHz = 5, rough = 0, breath = 0 }) {
+  const ramp = (param, pts, pick) => pts.forEach(([u, v], i) => i ? param.linearRampToValueAtTime(pick(v), t + u * dur) : param.setValueAtTime(pick(v), t));
+  const o = actx.createOscillator(); o.type = 'sawtooth'; ramp(o.frequency, f0, hz => hz * vp);
+  const stop = t + dur + 0.05;
+  if (vib) { const l = actx.createOscillator(), lg = actx.createGain(); l.frequency.value = vibHz; lg.gain.value = vib * 100; l.connect(lg); lg.connect(o.detune); l.start(t); l.stop(stop); }
+  const sum = actx.createGain();
+  [[6, 1], [9, 0.55], [12, 0.25]].forEach(([q, level], k) => {
+    const f = actx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = q; ramp(f.frequency, form, F => F[k]);
+    const g = actx.createGain(); g.gain.value = level; o.connect(f); f.connect(g); g.connect(sum);
+  });
+  let out = sum;
+  if (rough) {                                     // a growl: the loudness flutters quickly, like a pig's grunt
+    const r = actx.createGain(), am = actx.createOscillator(), ag = actx.createGain();
+    r.gain.value = 0.55; am.frequency.value = rough; ag.gain.value = 0.45; am.connect(ag); ag.connect(r.gain); am.start(t); am.stop(stop);
+    sum.connect(r); out = r;
+  }
+  const env = actx.createGain(), v = vol * vg;
+  env.gain.setValueAtTime(0.0001, t); env.gain.exponentialRampToValueAtTime(v, t + Math.min(0.09, dur * 0.25));
+  env.gain.setValueAtTime(v, t + dur * 0.7); env.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  out.connect(env); env.connect(master); o.start(t); o.stop(stop);
+  if (breath) noise(t, dur, form[0][1][1], breath, 'bandpass');
+}
 const play = fn => {
   if (!soundOn || !audio()) return;
   vp = 1 + (arnd() - 0.5) * 0.06; vg = 0.9 + arnd() * 0.2;
@@ -96,10 +121,17 @@ const sfx = {
   hydraulic: () => play(t => { tone(95, t, 0.8, 'sawtooth', 0.025, 140); noise(t, 0.8, 600, 0.02, 'lowpass'); }),
   switchOn: on => play(t => tone(on ? 1500 : 1100, t, 0.04, 'square', 0.025)),
   spray: () => play(t => noise(t, 1.0, 5000, 0.03, 'highpass')),
-  farm: () => play(t => {
-    tone(150, t, 1.0, 'sawtooth', 0.06, 115); tone(152, t, 1.0, 'square', 0.025, 118);                               // moo
-    for (let i = 0; i < 3; i++) { noise(t + 1.1 + i * 0.16, 0.1, 900, 0.18); tone(420, t + 1.1 + i * 0.16, 0.08, 'square', 0.04, 300); }   // oink oink
-    for (let i = 0; i < 8; i++) tone(900 - i * 60 + (i % 2) * 120, t + 1.7 + i * 0.07, 0.08, 'sawtooth', 0.04);       // neigh
+  // Farm animals, each with its own voice. A cow's low "mmm-ooo" opens from closed lips to a wide vowel;
+  // a pig grunts through its nose in short, rough bursts; a horse's whinny leaps high and shakes, then it snorts.
+  cow: () => play(t => voice(t, { dur: 1.5, vol: 0.4, vib: 0.15, vibHz: 4.5, breath: 0.012,
+    f0: [[0, 100], [0.2, 128], [0.7, 120], [1, 88]],
+    form: [[0, [250, 600, 2200]], [0.25, [600, 1000, 2400]], [0.75, [700, 1150, 2500]], [1, [330, 700, 2200]]] })),
+  pig: () => play(t => { for (let i = 0; i < 3; i++) voice(t + i * 0.24, { dur: 0.17, vol: 0.38, rough: 48, breath: 0.035,
+    f0: [[0, 200], [0.3, 175], [1, 115]], form: [[0, [520, 1500, 2600]], [1, [420, 1200, 2400]]] }); }),
+  horse: () => play(t => {
+    voice(t, { dur: 1.3, vol: 0.28, vib: 1.3, vibHz: 11, f0: [[0, 420], [0.12, 900], [0.35, 820], [0.7, 600], [1, 360]],
+      form: [[0, [800, 1600, 2800]], [1, [600, 1300, 2500]]] });
+    noise(t + 1.38, 0.22, 650, 0.12, 'lowpass'); noise(t + 1.64, 0.18, 520, 0.09, 'lowpass');   // snort
   }),
   garage: () => play(t => { noise(t, 1.1, 260, 0.12, 'lowpass'); for (let i = 0; i < 9; i++) tone(90 + (i % 2) * 20, t + i * 0.12, 0.1, 'square', 0.025); }),
   goodnight: () => play(t => { [523, 659, 784, 1046].forEach((f, i) => tone(f, t + i * 0.28, 0.9, 'sine', 0.07)); }),
