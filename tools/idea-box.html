@@ -1,0 +1,152 @@
+<title>Jasper's Idea Box</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Karla:wght@400;600;700&display=swap">
+<style>
+  /* Layout: one calm column, like a page torn from a workshop notebook: write at the top, the ideas below. */
+  :root {
+    --bg: #e6eaec; --card: #f6f7f7; --ink: #22262a; --muted: #5f676d; --line: #c3cacd; --accent: #7a2430; --accent-ink: #ffffff; --done: #3e6b4a;
+    --font: "Karla", "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #1a1e22; --card: #23282d; --ink: #e2e5e7; --muted: #8b949a; --line: #3a4147; --accent: #d0606c; --accent-ink: #1a1e22; --done: #7fb38c; color-scheme: dark } }
+  :root[data-theme="dark"] {
+    --bg: #1a1e22; --card: #23282d; --ink: #e2e5e7; --muted: #8b949a; --line: #3a4147; --accent: #d0606c; --accent-ink: #1a1e22; --done: #7fb38c; color-scheme: dark }
+  body { background: var(--bg); color: var(--ink); font: 400 17px/1.45 var(--font); }
+  .wrap { max-width: 620px; margin: 0 auto; padding-block: 28px 48px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: grid; gap: 22px; }
+  header { display: flex; align-items: center; gap: 14px; }
+  header svg { width: 52px; height: 52px; flex: none; }
+  h1 { margin: 0; font-size: 1.7rem; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
+  .sub { margin: 2px 0 0; color: var(--muted); font-size: .95rem; }
+  .write { background: var(--card); border: 1.5px solid var(--ink); border-radius: 18px; padding: 18px; display: grid; gap: 12px; }
+  label.ask { font-weight: 700; font-size: 1.2rem; color: var(--accent); }
+  .kinds { display: flex; gap: 8px; flex-wrap: wrap; }
+  button { font: 600 1rem/1 var(--font); color: var(--ink); background: transparent; border: 1.5px solid var(--ink); border-radius: 999px; padding: 12px 20px; cursor: pointer; }
+  button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+  button:focus-visible, textarea:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  button:disabled { opacity: .45; cursor: default; }
+  .kinds button { padding: 9px 16px; font-size: .9rem; }
+  textarea { width: 100%; box-sizing: border-box; min-height: 110px; resize: vertical; font: 400 18px/1.4 var(--font); color: var(--ink);
+    background: var(--bg); border: 1.5px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .send { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-size: 1.1rem; padding: 14px 26px; }
+  .note { margin: 0; min-height: 1.3em; color: var(--accent); font-weight: 600; }
+  section h2 { margin: 0 0 8px; font-size: .8rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  li { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; display: grid; gap: 4px; min-width: 0; }
+  li.done { border-color: var(--done); }
+  .words { margin: 0; font-weight: 600; font-size: 1.08rem; overflow-wrap: anywhere; }
+  .what { margin: 0; }
+  .meta { margin: 0; color: var(--muted); font-size: .85rem; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .chip { font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; border-radius: 999px; padding: 3px 9px; border: 1px solid currentColor; }
+  .chip.waiting { color: var(--muted); } .chip.building { color: var(--accent); } .chip.done { color: var(--done); }
+  .remove { padding: 6px 12px; font-size: .8rem; }
+  .empty, .notice { color: var(--muted); margin: 0; }
+  .notice { background: var(--card); border: 1px dashed var(--line); border-radius: 12px; padding: 12px 14px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <svg viewBox="0 0 512 512" aria-hidden="true"><g transform="translate(256 256) scale(1.9) translate(-128 -128)">
+      <polygon points="128,10 230.19,69 230.19,187 128,246 25.81,187 25.81,69" fill="#7a2430" stroke="#efe9da" stroke-width="11"/>
+      <g fill="#efe9da"><path d="M182 122 L220 66 L212 136 L188 154 Z M74 122 L36 66 L44 136 L68 154 Z"/><path d="M119 82 L128 36 L137 82 Z"/>
+      <path d="M72 124 Q70 66 128 64 Q186 66 184 124 L174 184 L150 206 L106 206 L82 184 Z"/></g>
+      <path d="M80 114 L176 114 L168 140 L88 140 Z" fill="#1c2024"/><rect x="94" y="124" width="68" height="6" fill="#ff5a3c"/>
+      <path d="M116 114 L128 98 L140 114 Z" fill="#7a2430"/><g fill="#1c2024"><rect x="108" y="162" width="8" height="28"/><rect x="124" y="162" width="8" height="28"/><rect x="140" y="162" width="8" height="28"/></g>
+    </g></svg>
+    <div><h1>Jasper's ideas</h1><p class="sub">Every idea goes straight to Dad and Claude. Then they build it into Skyrender.</p></div>
+  </header>
+
+  <form class="write" id="form">
+    <label class="ask" for="ideaText">What should Skyrender do next?</label>
+    <div class="kinds" role="group" aria-label="Kind of idea">
+      <button type="button" data-kind="new" aria-pressed="true">New idea</button>
+      <button type="button" data-kind="change" aria-pressed="false">Change something</button>
+    </div>
+    <textarea id="ideaText" maxlength="800" placeholder="Type your idea here"></textarea>
+    <div class="row"><button class="send" id="send" type="submit">Send to Dad</button></div>
+    <p class="note" id="note" aria-live="polite"></p>
+    <p class="notice" id="offline" hidden>Your idea can't be sent from here yet. Ask Dad to sign in to Claude on this iPad, then it will work. Your idea is saved on this iPad until then.</p>
+  </form>
+
+  <section aria-labelledby="h-wait"><h2 id="h-wait">Waiting and being built</h2><ul id="waiting"></ul><p class="empty" id="waitEmpty">Ideas you send show up here.</p></section>
+  <section aria-labelledby="h-done"><h2 id="h-done">Came true</h2><ul id="done"></ul><p class="empty" id="doneEmpty">When Dad and Claude build one of your ideas, it moves here.</p></section>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const text = $('ideaText'), note = $('note'), send = $('send');
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const day = iso => { const d = new Date(iso); return isNaN(d) ? '' : MONTHS[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear(); };
+  let kind = 'new', db = null, sending = false;
+
+  // the unsent draft stays on this iPad, so nothing he typed is lost
+  const DRAFT = 'jasper-idea-draft';
+  try { text.value = localStorage.getItem(DRAFT) || ''; } catch {}
+  text.addEventListener('input', () => { try { localStorage.setItem(DRAFT, text.value); } catch {} });
+
+  document.querySelectorAll('[data-kind]').forEach(b => b.addEventListener('click', () => {
+    kind = b.dataset.kind;
+    document.querySelectorAll('[data-kind]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    text.placeholder = kind === 'new' ? 'Type your idea here' : 'What should be different?';
+    text.focus();
+  }));
+
+  const li = (d, id) => {
+    const el = document.createElement('li'); if (d.status === 'done') el.className = 'done';
+    const w = document.createElement('p'); w.className = 'words'; w.textContent = (d.kind === 'change' ? 'Change: ' : '') + '"' + (d.words || '') + '"'; el.append(w);
+    if (d.status === 'done' && d.what) { const x = document.createElement('p'); x.className = 'what'; x.textContent = d.what; el.append(x); }
+    const m = document.createElement('p'); m.className = 'meta';
+    const chip = document.createElement('span'); chip.className = 'chip ' + (d.status || 'waiting');
+    chip.textContent = d.status === 'done' ? 'Came true' : d.status === 'building' ? 'Being built' : 'Waiting';
+    const when = document.createElement('span');
+    when.textContent = d.status === 'done' && d.doneOn ? 'Came true on ' + day(d.doneOn) : 'Sent on ' + day(d.when);
+    m.append(chip, when);
+    if ((d.status || 'waiting') === 'waiting' && db) {
+      const rm = document.createElement('button'); rm.type = 'button'; rm.className = 'remove'; rm.textContent = 'Remove';
+      rm.addEventListener('click', async () => {
+        rm.disabled = true;
+        try { await db.collection('ideas').doc(id).delete(); note.textContent = 'Removed.'; }
+        catch { rm.disabled = false; note.textContent = "Couldn't remove it. Try again in a moment."; }
+      });
+      m.append(rm);
+    }
+    el.append(m); return el;
+  };
+  const render = docs => {
+    const wait = $('waiting'), done = $('done'); wait.textContent = ''; done.textContent = '';
+    for (const s of docs) { const d = s.data() || {}; (d.status === 'done' ? done : wait).append(li(d, s.id)); }
+    $('waitEmpty').hidden = wait.children.length > 0; $('doneEmpty').hidden = done.children.length > 0;
+  };
+
+  $('form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const words = text.value.trim();
+    if (!words) { note.textContent = 'Type your idea first.'; text.focus(); return; }
+    if (!db) { $('offline').hidden = false; note.textContent = ''; return; }
+    if (sending) return; sending = true; send.disabled = true; note.textContent = 'Sending...';
+    try {
+      await db.collection('ideas').add({ words, kind, status: 'waiting', when: new Date().toISOString() });
+      text.value = ''; try { localStorage.removeItem(DRAFT); } catch {}
+      note.textContent = 'Sent! Dad and Claude can see it now.';
+    } catch (err) {
+      note.textContent = err && err.code === 'quota_exceeded' ? 'The idea box is full. Ask Dad to clear out old ideas.' : "It didn't send. Check the internet and tap Send again.";
+    }
+    sending = false; send.disabled = false;
+  });
+
+  // connect to the idea box's database (null when this view can't, e.g. not signed in)
+  const timer = setTimeout(() => { if (!db) $('offline').hidden = false; }, 10000);
+  if (window.claude && window.claude.use) {
+    window.claude.use('db').then(d => {
+      if (!d) { clearTimeout(timer); $('offline').hidden = false; return; }
+      db = d;
+      d.collection('ideas').orderBy('when', 'desc').limit(200).onSnapshot(
+        snap => { clearTimeout(timer); $('offline').hidden = true; render(snap.docs); },
+        () => { clearTimeout(timer); note.textContent = "Can't load your ideas right now. They're safe; try again later."; });
+    });
+  } else { clearTimeout(timer); $('offline').hidden = false; }
+})();
+</script>
