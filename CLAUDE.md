@@ -2,6 +2,12 @@
 
 A transforming toy built for Jasper (Daniel's son). One machine changes between six modes: plane, robot, train, rocket, big rig (semi truck with the SKYRENDER trailer) and Skyfly (farm tractor). Each mode has its own world, with toggles and surprises. Jasper comes up with most of the ideas, and some requests are typed by Jasper himself. Built with Three.js r128 and Vite. The page is `index.html`; the code is ES modules under `src/` (map below). The original single file is in git history as Checkpoint 0.
 
+## Why Skyrender exists
+
+In Daniel's words: "We are building something to make my son's brain expand and be on fire; not to impress anyone else, not to market to other kids, not to be anything it isn't. I want him to dream, be interested, learn, enjoy."
+
+The goal behind each request: Jasper sees his own ideas become real. When choosing between two ways to build something, pick the one that makes him more curious, teaches him something true about how the world works, or invites him to imagine the next thing. Go deeper, not bigger. Never add anything to look impressive, chase attention or keep him hooked (no streaks, rewards, timers or nagging).
+
 ## Rules that never bend
 
 - **One machine.** Every part of every mode exists in all forms. Parts unfold, slide, rotate or tuck away. Nothing pops in or vanishes. A new part has to be stored, hidden, inside the body in the other modes. `npm run test:rig` checks this numerically. It must pass, worst error near 1e-15.
@@ -21,6 +27,9 @@ A transforming toy built for Jasper (Daniel's son). One machine changes between 
 
 ## How work gets done
 
+- **Before building a Jasper idea, ask four questions** and answer them in the commit message: (1) What would a top toy designer add that he didn't ask for? (2) What real-world detail would make it feel true (how a real ladder extends, what a real signal means)? (3) Which method or field does this best (animation timing, sound design, real procedures)? (4) What, besides my own opinion, shows it works (a test, a screenshot, how Jasper plays with it)? Use other fields to find methods, not to play characters.
+- **Watching Jasper play beats any request.** When Daniel shares what Jasper did (pressed Crash! ten times, got bored in the cabin), treat it as the best input there is.
+- **Jasper's privacy.** The project is public. Nothing about how Jasper plays ever leaves his iPad; nothing personal about him goes in the code beyond his first name.
 - **One Jasper request = one git commit.** Quote his request in the commit message, in his words.
 - **Run the tests before every commit:** `npm test` builds the page, then runs the rig check plus the click-through scenarios against `dist/`: all modes and every action button, garage and robot house, airport, plane cabin, reboarding, cancelled boarding, and the home screen install check (manifest and icons). Each scenario prints `errors []` on success. Last, `npm run test:shots` compares every screenshot with the approved one in `tests/baseline/`. To run one scenario (for example `npm run test:park`), run `npm run build` first.
 - **Upload straight away:** after `npm test` passes and the commit is made, push to `main` (`git push`) without asking. Daniel gave this standing OK on 2026-11-15. The site updates about 2 minutes later; check the run with `gh run watch`. Anything beyond a normal push (force-push, rewriting history, changing GitHub settings) still needs his OK first.
