@@ -22,7 +22,7 @@ A transforming toy built for Jasper (Daniel's son). One machine changes between 
 ## How work gets done
 
 - **One Jasper request = one git commit.** Quote his request in the commit message, in his words.
-- **Run the tests before every commit:** `npm test` builds the page, then runs the rig check plus the click-through scenarios against `dist/`: all modes and every action button, garage and robot house, airport, plane cabin, reboarding and cancelled boarding. Each scenario prints `errors []` on success. To run one scenario (for example `npm run test:park`), run `npm run build` first. Look at the screenshots in `tests/shots/` for anything visual you changed.
+- **Run the tests before every commit:** `npm test` builds the page, then runs the rig check plus the click-through scenarios against `dist/`: all modes and every action button, garage and robot house, airport, plane cabin, reboarding, cancelled boarding, and the home screen install check (manifest and icons). Each scenario prints `errors []` on success. To run one scenario (for example `npm run test:park`), run `npm run build` first. Look at the screenshots in `tests/shots/` for anything visual you changed.
 - **Changing an existing feature:** run the related scenario before and after, and compare the screenshots.
 - **Adding a feature:** add a scenario in `tests/scenarios/` that walks through it.
 - **Big new worlds** (like the plane cabin) get their own scene, camera and UI panel so they don't tangle with the transforming toy.
@@ -63,12 +63,14 @@ A transforming toy built for Jasper (Daniel's son). One machine changes between 
   - `window.__cab` is a test hook.
 - `style.css`: the page styles with the light and dark color tokens.
 
+Outside `src/`: `public/` is copied as is into the built page. It holds `manifest.webmanifest` (home screen install) and the app icon: `icon.svg` is the team crest from `rig/textures.js`, and `npm run icons` redraws `icon-180.png` (iPad), `icon-192.png` and `icon-512.png` from it (`scripts/make-icons.js`).
+
 Adding a feature: put new code in the module for that world. If the main loop has to call it, export it and add it to `link()` in `game/core.js` (or, if it only reads core state, import from `game/core.js`).
 
 ## Planned next steps (in order)
 
 1. Done: split `skyrender.html` into modules with Vite, without changing behavior (screenshots matched the Checkpoint 0 baseline apart from the random parts).
-2. Free hosting at a fixed link: GitHub Pages through a GitHub Actions workflow that builds and deploys on every push to `main`. Make it installable to the home screen (web app manifest and icon) so Jasper can open it like an app.
+2. Free hosting at a fixed link: GitHub Pages through a GitHub Actions workflow that builds and deploys on every push to `main`. Done so far: home screen install (web app manifest and the crest icon). Waiting on Daniel: a GitHub account and sign-in, whether the code may be public, and whether "Jasper" stays in place names. Ask before creating the repository or pushing anything.
 3. Back to building Jasper's ideas, one commit each.
 
 ## Known limitations (already explained to Daniel)

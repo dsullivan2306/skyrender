@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Skyrender app icon: the team crest from src/rig/textures.js, on the page's stone background -->
+  <rect width="512" height="512" fill="#cfd6d9"/>
+  <g transform="translate(256 256) scale(1.56) translate(-128 -128)">
+    <polygon points="128,10 230.19,69 230.19,187 128,246 25.81,187 25.81,69" fill="#7a2430" stroke="#efe9da" stroke-width="11"/>
+    <g fill="#efe9da">
+      <path d="M182 122 L220 66 L212 136 L188 154 Z M74 122 L36 66 L44 136 L68 154 Z"/>
+      <path d="M119 82 L128 36 L137 82 Z"/>
+      <path d="M72 124 Q70 66 128 64 Q186 66 184 124 L174 184 L150 206 L106 206 L82 184 Z"/>
+    </g>
+    <path d="M80 114 L176 114 L168 140 L88 140 Z" fill="#1c2024"/>
+    <rect x="94" y="124" width="68" height="6" fill="#ff5a3c"/>
+    <path d="M116 114 L128 98 L140 114 Z" fill="#7a2430"/>
+    <g fill="#1c2024"><rect x="108" y="162" width="8" height="28"/><rect x="124" y="162" width="8" height="28"/><rect x="140" y="162" width="8" height="28"/></g>
+  </g>
+</svg>
