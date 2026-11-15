@@ -35,7 +35,8 @@ const measure = async (name, setup) => {
   const p = await page.evaluate(() => window.__perf);
   const work = p.map(x => x[1]), gaps = p.slice(1).map((x, i) => x[0] - p[i][0]);
   const r = { name, work50: pct(work, 0.5), work95: pct(work, 0.95), fps: gaps.length ? 1000 / pct(gaps, 0.5) : 0 };
-  console.log(`${name.padEnd(16)} game work ${r.work50.toFixed(1)} ms typical, ${r.work95.toFixed(1)} ms slowest 5% | ${r.fps.toFixed(0)} frames a second here`);
+  r.draws = await page.evaluate(() => window.__renderInfo ? window.__renderInfo.render.calls : 0);
+  console.log(`${name.padEnd(16)} game work ${r.work50.toFixed(1)} ms typical, ${r.work95.toFixed(1)} ms slowest 5% | ${r.fps.toFixed(0)} frames a second here | ${r.draws} draws`);
   return r;
 };
 const MODES = ['Plane', 'Robot', 'Train', 'Rocket', 'Truck', 'Tractor'];

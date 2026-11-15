@@ -2,12 +2,52 @@ import * as THREE from 'three';
 import { buildRig, planMorph } from '../rig/rig.js';
 import { scene } from '../world/setup.js';
 import { makeTextures } from '../rig/textures.js';
+import { BufferGeometryUtils } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+
+// Smoothness: the toy is over a thousand little parts, and the browser draws each one separately. Parts that
+// are fixed to the same moving piece and painted the same are joined into one shape, so they're drawn at once.
+// Nothing moves or looks different: every joint, and every part the game moves, shows or hides by itself, stays.
+function mergeFixedParts(rig) {
+  const named = new Set();                         // parts the game reaches for by name stay separate
+  const seen = new Set();
+  const visit = (v, depth) => {
+    if (!v || typeof v !== 'object' || depth > 5 || seen.has(v)) return; seen.add(v);
+    if (v.isObject3D) { named.add(v); visit(v.userData, depth + 1); return; }
+    if (v.isMaterial || v.isTexture || v.isBufferGeometry || ArrayBuffer.isView(v)) return;
+    for (const k in v) visit(v[k], depth + 1);
+  };
+  for (const k in rig) if (k !== 'bot') visit(rig[k], 0);
+  rig.bot.traverse(o => { if (o.userData) for (const k in o.userData) { const v = o.userData[k]; if (v && v.isObject3D) named.add(v); } });
+  const groups = new Map();
+  rig.bot.traverse(o => {
+    if (!o.isMesh || named.has(o) || o.children.length || !o.visible || Array.isArray(o.material) || o.material.transparent || o.onBeforeRender !== THREE.Object3D.prototype.onBeforeRender) return;
+    o.updateMatrix();
+    if (o.matrix.determinant() <= 0) return;      // mirrored parts would turn inside out
+    const g = o.geometry, attrs = Object.keys(g.attributes).sort().join(',');
+    const key = [o.parent.id, o.material.id, o.castShadow, o.receiveShadow, o.renderOrder, !!g.index, attrs, g.groups.length].join('|');
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(o);
+  });
+  let before = 0, after = 0;
+  for (const list of groups.values()) {
+    before += list.length;
+    if (list.length < 2) { after += list.length; continue; }
+    const geo = BufferGeometryUtils.mergeBufferGeometries(list.map(o => o.geometry.clone().applyMatrix4(o.matrix)));
+    if (!geo) { after += list.length; continue; }
+    const m = new THREE.Mesh(geo, list[0].material);
+    m.castShadow = list[0].castShadow; m.receiveShadow = list[0].receiveShadow; m.renderOrder = list[0].renderOrder;
+    const parent = list[0].parent; for (const o of list) parent.remove(o); parent.add(m);
+    after++;
+  }
+  rig.merged = { before, after };
+}
 
 // The toy's shared state, in one place. Every part of the game reads and changes it through S
 // (S.planeT, S.on.lights, ...), so any module can move the toy along without setters.
 // This file runs right before game/core.js, so the machine is built at the same moment as always.
 
 const rig = buildRig(THREE, makeTextures());
+mergeFixedParts(rig);
 const flyer = new THREE.Group();          // bob and bank while airborne, rumble on the rails
 scene.add(flyer);
 flyer.add(rig.bot);

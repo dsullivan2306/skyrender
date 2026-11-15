@@ -30,6 +30,11 @@ import { launchCaption, runCountdown, runEngines, runLaunchSmoke, runSwingArm, s
 // in the same order as before the split. The main loop still needs some of their pieces, so main.js
 // hands them over with link() before the first frame. They're kept on `linked` (game/state.js).
 function link(parts) { Object.assign(linked, parts); }
+
+// Smoothness: three.js redoes the position math of every object every frame, even in worlds that aren't
+// showing. These worlds skip it while hidden, and catch up the moment they come back into view.
+const skipWhenHidden = function (force) { if (this.visible) THREE.Object3D.prototype.updateMatrixWorld.call(this, force); };
+for (const set of [groundSet, homeSet, trackSet, airportSet, launchSet, roadSet, interSet, farmSet, hallSet, airportScenery, space, cloudSet, birdSet, fallers]) set.updateMatrixWorld = skipWhenHidden;
 Object.assign(linked, { go, buildActions, setButtons });   // bedtime (game/park.js) calls these back
 
 const skipBox = new Set(); rig.flames.forEach(g => g.traverse(o => { if (o.isMesh) skipBox.add(o); }));

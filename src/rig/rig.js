@@ -937,12 +937,34 @@ function poseRig(rig, plan, t, ease) {
   rig.M.visor.emissiveIntensity = 0.1 + 1.8 * Math.pow(hk, 3);
 }
 // Exact world-space bounds from vertices (Box3.setFromObject in r128 pads rotated boxes).
+// The toy's exact outline: the box around every corner point of every part, as placed right now.
+// To keep it quick, each part remembers its own box and only measures again when it has moved, and each
+// shape is measured from its distinct corner points (shapes repeat corners where faces meet). The result is
+// exactly the same box, because a box around boxes is the box around all their points.
+const boxCache = new WeakMap(), cornerCache = new WeakMap();
+function corners(pos) {
+  let c = cornerCache.get(pos);
+  if (c && c.version === pos.version) return c.pts;
+  const seen = new Set(), pts = [];
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i), k = x + ',' + y + ',' + z;
+    if (!seen.has(k)) { seen.add(k); pts.push(x, y, z); }
+  }
+  c = { version: pos.version, pts: new Float32Array(pts) }; cornerCache.set(pos, c);
+  return c.pts;
+}
 function exactBox(THREE, root, skip) {
   const box = new THREE.Box3(), v = new THREE.Vector3();
   root.traverse(o => {
     if (!o.isMesh || (skip && skip.has(o))) return;
-    const pos = o.geometry.attributes.position, m = o.matrixWorld;
-    for (let i = 0; i < pos.count; i++) box.expandByPoint(v.fromBufferAttribute(pos, i).applyMatrix4(m));
+    const pos = o.geometry.attributes.position, e = o.matrixWorld.elements;
+    let c = boxCache.get(o);
+    if (!c || c.pos !== pos || c.version !== pos.version || c.e.some((x, n) => x !== e[n])) {
+      const pts = corners(pos), b = new THREE.Box3();
+      for (let i = 0; i < pts.length; i += 3) b.expandByPoint(v.set(pts[i], pts[i + 1], pts[i + 2]).applyMatrix4(o.matrixWorld));
+      c = { pos, version: pos.version, e: e.slice(), b }; boxCache.set(o, c);
+    }
+    if (!c.b.isEmpty()) box.union(c.b);
   });
   return box;
 }

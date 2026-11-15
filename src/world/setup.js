@@ -7,6 +7,7 @@ const countdown = document.getElementById('countdown');
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
+window.__renderInfo = renderer.info;          // test hook: npm run perf reads how many draws each frame takes
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
