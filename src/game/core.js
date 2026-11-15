@@ -14,7 +14,7 @@ import { home, homeSet } from '../home/home.js';
 import { SEASON_ORDER, applySeason, fallActive, fallGeo, fallPos, fallSeed, fallSpeed, fallers, season } from '../scenery/seasons.js';
 import { birdSet, cloudMat, cloudSet, clouds, flocks, puff } from '../scenery/sky.js';
 import { atmoMat, earth, earthMat, giant, moonMat, planetMats, smoke, smokeMat, space, spaceBot, spaceTop, starMat } from '../scenery/space.js';
-import { actx, rumbleFilter, rumbleGain, sfx, soundOn } from '../audio/audio.js';
+import { setMix, sfx } from '../audio/audio.js';
 import { ENV, S, airborne, box, c01, clamp01, ease, flyer, lerp, lerpJ, linked, rig, say, settled, sm, targetMode, wrap } from './state.js';
 import { buildPuffs, emitPuff, runPuffs, stackTop } from './puffs.js';
 import { runTractor } from './tractor.js';
@@ -143,9 +143,13 @@ function setSize(val) {
   say(val === 'big' ? 'GIANT Skyrender! Cannons, knee guards and power lights out' : val === 'small' ? 'Tiny Skyrender! Armor packs away, wings tuck in' : 'Back to regular size', 2.4);
   sfx.size(grow);
 }
+// Every button answers: doors latch, hydraulics hum, switches click, the sprayer hisses.
+const BTN_SFX = { door: 'latch', mask: 'latch', hatch: 'latch', tdoors: 'latch', cab: 'latch', gear: 'gear', lights: 'switch', lamp: 'switch', smoke: 'switch', arm: 'hydraulic', plow: 'hydraulic', spray: 'spray' };
 function doAction(a, b) {
   if (!a.press) { S.on[a.id] = !S.on[a.id]; b.setAttribute('aria-pressed', String(S.on[a.id])); }
-  if (a.id === 'whistle') { for (let i = 0; i < 4; i++) setTimeout(() => emitPuff(true), i * 110); say('Toot toot!'); sfx.whistle(); }
+  const snd = BTN_SFX[a.id]; if (snd === 'switch') sfx.switchOn(!!S.on[a.id]); else if (snd) sfx[snd]();
+  if (a.id === 'stop' && S.on.stop && (S.plan.to === 4 || S.plan.to === 2)) sfx.airBrake(S.plan.to === 2);   // air brakes hiss; the train lets off steam
+  if (a.id === 'whistle') { for (const ms of [0, 1080, 2160, 2640]) setTimeout(() => emitPuff(true), ms); say('Long, long, short, long: crossing ahead!', 3); sfx.whistle('LLSL'); }
   if (a.id === 'peek') say(S.on.peek ? 'Peeking inside Jasper Junction Airport' : 'Back out to the runway', 2);
   if (a.id === 'goin') { say(S.on.goin ? 'Skyrender rolls into the airport through the big glass doors' : 'Skyrender rolls back out to the runway', 2.4); if ((S.on.goin || S.on.peek) && S.planeT > 0) { S.pending = 0; setButtons(); } }
   if (a.id === 'peek' && S.on.peek && S.planeT > 0) { S.pending = 0; setButtons(); }
@@ -386,10 +390,26 @@ function frame() {
   runPuffs(sdt);
 
   for (const f of rig.fans) f.rotation.z += dt * (5 + 14 * S.planeSpeed / 28 + 10 * air);
-  if (rumbleGain && soundOn) {                         // rocket roar, jet whoosh, truck engine
-    const roar = S.thrust * (1 - 0.7 * sp), jet = S.plan.to === 0 ? 0.25 * Math.min(1, S.planeSpeed / 28 + air) : 0, eng = 0.18 * S.truckSpeed / 10;
-    rumbleGain.gain.setTargetAtTime(linked.cab.active ? 0.1 + 0.35 * (linked.cab.engine || 0) : Math.min(0.9, roar * 0.8 + jet + eng), actx.currentTime, 0.15);
-    rumbleFilter.frequency.setTargetAtTime(roar > 0.05 ? 260 + 300 * roar : jet > 0.05 ? 900 : 140, actx.currentTime, 0.2);
+  // ---- sound: rushing air, engines, jet whine, and each world's quiet background ----
+  {
+    const inCab = linked.cab.active, cabEng = linked.cab.engine || 0;
+    // space is silent: there's no air to carry sound. The engines light with a low rumble just before liftoff.
+    const roar = inCab ? 0 : S.thrust * (1 - sp) + (onPad && S.launchT > 2 && S.launchT < 3 ? 0.2 * (S.launchT - 2) : 0);
+    const jet = S.plan.to === 0 && !inCab ? 0.25 * Math.min(1, S.planeSpeed / 28 + air) : 0;
+    const truckOn = S.plan.to === 4 && settled() && !S.on.wreck && !S.parkState, tractorOn = S.plan.to === 5 && settled() && !S.parkState;
+    const spool = inCab ? cabEng : S.plan.to === 0 ? Math.min(1, S.planeSpeed / 28 + air) : 0;
+    const ground = !inCab && S.alt < 30 && air < 0.5;
+    setMix({
+      roar: inCab ? 0.1 + 0.35 * cabEng : Math.min(0.9, roar * 0.8 + jet),
+      rumbleHz: roar > 0.05 ? 260 + 300 * roar : jet > 0.05 ? 900 : 140,
+      // diesels thump because each cylinder fires in turn; the slow tractor thumps slower
+      engHz: truckOn ? 30 + 50 * Math.min(1, S.truckSpeed / 16) : 20 + 15 * Math.min(1, S.tractorSpeed / 3.6) + Math.sin(S.clockT * 7) * 1.5,
+      eng: truckOn ? 0.6 + 0.4 * Math.min(1, S.truckSpeed / 16) : tractorOn ? 0.7 : 0,
+      whineHz: 1800 + 1700 * spool, whine: spool > 0.02 ? 0.4 + 0.6 * spool : 0,
+      wind: !inCab && air > 0.3 && sp < 0.5 ? air * (1 - 2 * sp) : 0,
+      birds: ground && !S.night ? (S.env.farm > 0.5 ? 0.9 : 0.5) : 0,
+      crickets: ground && S.night && S.env.pad < 0.5 && S.env.launch < 0.5 ? 0.8 : 0,
+    }, dt);
   }
   const text = caption();
   if (stepLabel.textContent !== text) { stepLabel.textContent = text; if (!settled() && S.pending === null) sfx.click(); }

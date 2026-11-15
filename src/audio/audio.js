@@ -1,46 +1,101 @@
 // ---------- sound: everything is synthesized with Web Audio, nothing to download ----------
-let actx = null, master = null, noiseBuf = null, rumbleGain = null, rumbleFilter = null, soundOn = true;
+// Sound has its own random numbers (arnd), separate from Math.random, so changing a sound never changes
+// what you see (and the exact-screenshot tests stay exact).
+let aseed = 0x5eed;
+const arnd = () => { aseed = (aseed + 0x6D2B79F5) | 0; let x = Math.imul(aseed ^ (aseed >>> 15), 1 | aseed); x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x; return ((x ^ (x >>> 14)) >>> 0) / 4294967296; };
+
+let actx = null, master = null, soft = null, noiseBuf = null, rumbleGain = null, rumbleFilter = null, soundOn = true;
+let engOsc = null, engGain = null, whineOsc = null, whineGain = null, windGain = null, windFilter = null;
 function audio() {
   if (!actx) {
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null;
-    actx = new AC(); master = actx.createGain(); master.gain.value = 0.55; master.connect(actx.destination);
+    actx = new AC(); master = actx.createGain(); master.gain.value = 0.55;
+    // gentle on small ears: a compressor keeps the crash, siren and engines from piling up loud
+    const comp = actx.createDynamicsCompressor();
+    comp.threshold.value = -20; comp.ratio.value = 4; comp.attack.value = 0.005; comp.release.value = 0.25;
+    master.connect(comp); comp.connect(actx.destination);
+    soft = actx.createBiquadFilter(); soft.type = 'lowpass'; soft.frequency.value = 2000; soft.connect(master);   // takes the buzz off horns and sirens
     const len = actx.sampleRate * 2; noiseBuf = actx.createBuffer(1, len, actx.sampleRate);
-    const d = noiseBuf.getChannelData(0); for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
-    const src = actx.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
+    const d = noiseBuf.getChannelData(0); for (let i = 0; i < len; i++) d[i] = arnd() * 2 - 1;
+    const loop = () => { const s = actx.createBufferSource(); s.buffer = noiseBuf; s.loop = true; s.start(0, arnd() * 2); return s; };
+    // the rushing-air bed: rocket roar and jet whoosh
     rumbleFilter = actx.createBiquadFilter(); rumbleFilter.type = 'lowpass'; rumbleFilter.frequency.value = 180;
     rumbleGain = actx.createGain(); rumbleGain.gain.value = 0;
-    src.connect(rumbleFilter); rumbleFilter.connect(rumbleGain); rumbleGain.connect(master); src.start();
+    loop().connect(rumbleFilter); rumbleFilter.connect(rumbleGain); rumbleGain.connect(master);
+    // the engine bus: a buzz at the cylinders' firing rate, darkened, so diesels thump and the tractor putts
+    engOsc = actx.createOscillator(); engOsc.type = 'sawtooth'; engOsc.frequency.value = 30;
+    const engLow = actx.createBiquadFilter(); engLow.type = 'lowpass'; engLow.frequency.value = 300;
+    engGain = actx.createGain(); engGain.gain.value = 0;
+    engOsc.connect(engLow); engLow.connect(engGain); engGain.connect(master); engOsc.start();
+    // jet fan whine: a thin high hum that rises as the engines spool up
+    whineOsc = actx.createOscillator(); whineOsc.type = 'sine'; whineOsc.frequency.value = 1800;
+    whineGain = actx.createGain(); whineGain.gain.value = 0;
+    whineOsc.connect(whineGain); whineGain.connect(master); whineOsc.start();
+    // wind, for high above the clouds
+    windFilter = actx.createBiquadFilter(); windFilter.type = 'bandpass'; windFilter.frequency.value = 500; windFilter.Q.value = 0.7;
+    windGain = actx.createGain(); windGain.gain.value = 0;
+    loop().connect(windFilter); windFilter.connect(windGain); windGain.connect(master);
   }
   if (actx.state === 'suspended') actx.resume();
   return actx;
 }
 addEventListener('pointerdown', () => audio(), { once: false, passive: true });
-function tone(f, t0, dur, type, vol, f2) {
-  const o = actx.createOscillator(), g = actx.createGain();
-  o.type = type; o.frequency.setValueAtTime(f, t0); if (f2) o.frequency.exponentialRampToValueAtTime(f2, t0 + dur);
+
+// No two sounds exactly alike: each play() picks one small pitch and level change shared by all its notes,
+// so chords stay in tune but a honk or chuff never repeats exactly.
+let vp = 1, vg = 1;
+function tone(f, t0, dur, type, vol, f2, dest, pan) {
+  const o = actx.createOscillator(), g = actx.createGain(); vol *= vg;
+  o.type = type; o.frequency.setValueAtTime(f * vp, t0); if (f2) o.frequency.exponentialRampToValueAtTime(f2 * vp, t0 + dur);
   g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + 0.02); g.gain.setValueAtTime(vol, t0 + dur * 0.75); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  o.connect(g); g.connect(master); o.start(t0); o.stop(t0 + dur + 0.05);
+  o.connect(g); g.connect(pan || dest || master); o.start(t0); o.stop(t0 + dur + 0.05);
 }
-function noise(t0, dur, freq, vol, type) {
-  const s = actx.createBufferSource(), f = actx.createBiquadFilter(), g = actx.createGain();
-  s.buffer = noiseBuf; f.type = type || 'bandpass'; f.frequency.value = freq;
+function noise(t0, dur, freq, vol, type, pan) {
+  const s = actx.createBufferSource(), f = actx.createBiquadFilter(), g = actx.createGain(); vol *= vg;
+  s.buffer = noiseBuf; f.type = type || 'bandpass'; f.frequency.value = freq * vp;
   g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  s.connect(f); f.connect(g); g.connect(master); s.start(t0, Math.random()); s.stop(t0 + dur + 0.05);
+  s.connect(f); f.connect(g); g.connect(pan || master); s.start(t0, arnd()); s.stop(t0 + dur + 0.05);
 }
-const play = fn => { if (!soundOn || !audio()) return; fn(actx.currentTime); };
+const play = fn => {
+  if (!soundOn || !audio()) return;
+  vp = 1 + (arnd() - 0.5) * 0.06; vg = 0.9 + arnd() * 0.2;
+  fn(actx.currentTime); vp = 1; vg = 1;
+};
+// a short whistle blast: long ones are 0.9 s, short ones 0.3 s
+const blast = (t, long) => { const d = long ? 0.9 : 0.3; for (const f of [587, 740, 880]) tone(f, t, d, 'sine', 0.07, f * 1.015); noise(t, d, 2400, 0.04); return d + 0.18; };
+let beat = 0;
 const sfx = {
-  honk: () => play(t => { for (const o of [0, 0.3]) { tone(370, t + o, 0.22, 'square', 0.11); tone(466, t + o, 0.22, 'square', 0.09); } }),
-  whistle: () => play(t => { for (const f of [587, 740, 880]) tone(f, t, 1.3, 'sine', 0.07, f * 1.015); noise(t, 1.3, 2400, 0.04); }),
-  chuff: v => play(t => noise(t, 0.2, 500, 0.1 * v, 'lowpass')),
+  honk: () => play(t => { for (const o of [0, 0.3]) { tone(370, t + o, 0.22, 'square', 0.11, 0, soft); tone(466, t + o, 0.22, 'square', 0.09, 0, soft); } }),
+  // Trains talk in whistles: two short means "here we go"; long, long, short, long means "coming to a crossing".
+  whistle: (pattern = 'LLSL') => play(t => { let o = 0; for (const c of pattern) o += blast(t + o, c === 'L'); }),
+  // a steam engine puffs four times per wheel turn; the first of the four is the strongest
+  chuff: v => play(t => { const acc = beat++ % 4 === 0; noise(t, acc ? 0.24 : 0.18, 400 + arnd() * 250, 0.1 * v * (acc ? 1.25 : 0.8), 'lowpass'); }),
+  clack: () => play(t => { noise(t, 0.03, 3000, 0.05, 'highpass'); noise(t + 0.11, 0.03, 2800, 0.045, 'highpass'); }),   // wheels over a rail joint
   click: () => play(t => { noise(t, 0.05, 3200, 0.07, 'highpass'); tone(200, t, 0.07, 'square', 0.04, 110); }),
+  lock: () => play(t => { tone(140, t, 0.09, 'triangle', 0.09, 90); noise(t, 0.04, 1800, 0.05, 'highpass'); }),       // parts meeting and locking
   whirr: dur => play(t => tone(110, t, dur, 'sawtooth', 0.025, 360)),
-  beep: hi => play(t => tone(hi ? 1046 : 784, t, hi ? 0.4 : 0.15, 'sine', 0.14)),
+  beep: hi => play(t => tone(hi ? 1046 : 784, t, hi ? 0.4 : 0.12, 'sine', 0.07)),
   size: up => play(t => { tone(up ? 90 : 520, t, 0.9, 'sawtooth', 0.05, up ? 420 : 110); tone(up ? 180 : 1040, t, 0.9, 'sine', 0.06, up ? 840 : 220); }),
   airhorn: () => play(t => { for (const o of [0, 0.55]) for (const f of [185, 233, 277]) tone(f, t + o, o ? 0.9 : 0.45, 'sawtooth', 0.045); }),
-  crash: () => play(t => { noise(t, 1.2, 300, 0.5, 'lowpass'); noise(t, 0.5, 2500, 0.25); for (let i = 0; i < 7; i++) tone(300 + Math.random() * 900, t + 0.05 + i * 0.09, 0.25, 'square', 0.04, 120 + Math.random() * 200); }),
-  siren: () => play(t => { for (let i = 0; i < 6; i++) tone(i % 2 ? 620 : 880, t + i * 0.45, 0.45, 'square', 0.035, i % 2 ? 880 : 620); }),
+  // big trucks stop with air, which is why they hiss; a train lets off steam instead
+  airBrake: steam => play(t => noise(t, steam ? 0.9 : 0.6, steam ? 1500 : 3000, steam ? 0.045 : 0.06, 'highpass')),
+  crash: () => play(t => { noise(t, 1.2, 300, 0.5, 'lowpass'); noise(t, 0.5, 2500, 0.25); for (let i = 0; i < 7; i++) tone(300 + arnd() * 900, t + 0.05 + i * 0.09, 0.25, 'square', 0.04, 120 + arnd() * 200); }),
+  // the siren starts far away and grows as the police arrive (far things sound quieter)
+  siren: () => play(t => { for (let i = 0; i < 6; i++) tone(i % 2 ? 620 : 880, t + i * 0.45, 0.45, 'square', 0.035 * Math.min(1, 0.25 + i * 0.25), i % 2 ? 880 : 620, soft); }),
   skid: () => play(t => { noise(t, 0.8, 1400, 0.18); tone(700, t, 0.8, 'sawtooth', 0.025, 500); tone(311, t + 0.1, 0.5, 'square', 0.04); }),
   jet: () => play(t => { tone(260, t, 2.2, 'sawtooth', 0.03, 900); noise(t, 2.2, 1800, 0.08); }),
+  // a passing car: its pitch drops as it goes by (the Doppler effect), moving from one ear to the other
+  passBy: side => play(t => {
+    let pan = null;
+    if (actx.createStereoPanner) { pan = actx.createStereoPanner(); pan.pan.setValueAtTime(side * 0.8, t); pan.pan.linearRampToValueAtTime(-side * 0.8, t + 0.7); pan.connect(master); }
+    tone(330, t, 0.7, 'triangle', 0.04, 290, null, pan); noise(t, 0.7, 700, 0.03, 'bandpass', pan);
+  }),
+  gear: () => play(t => { tone(120, t, 0.5, 'sawtooth', 0.03, 200); tone(70, t + 0.5, 0.15, 'sine', 0.12, 45); noise(t + 0.5, 0.08, 900, 0.06); }),   // whirr, then clunk
+  chirp: () => play(t => { noise(t, 0.12, 2200, 0.07); noise(t + 0.15, 0.1, 2000, 0.05); }),          // tires touching the runway
+  latch: () => play(t => { tone(180, t, 0.07, 'square', 0.035, 120); noise(t, 0.05, 1200, 0.05); }),  // doors and hatches
+  hydraulic: () => play(t => { tone(95, t, 0.8, 'sawtooth', 0.025, 140); noise(t, 0.8, 600, 0.02, 'lowpass'); }),
+  switchOn: on => play(t => tone(on ? 1500 : 1100, t, 0.04, 'square', 0.025)),
+  spray: () => play(t => noise(t, 1.0, 5000, 0.03, 'highpass')),
   farm: () => play(t => {
     tone(150, t, 1.0, 'sawtooth', 0.06, 115); tone(152, t, 1.0, 'square', 0.025, 118);                               // moo
     for (let i = 0; i < 3; i++) { noise(t + 1.1 + i * 0.16, 0.1, 900, 0.18); tone(420, t + 1.1 + i * 0.16, 0.08, 'square', 0.04, 300); }   // oink oink
@@ -51,12 +106,36 @@ const sfx = {
   ding: () => play(t => { tone(1175, t, 0.5, 'sine', 0.08); tone(880, t + 0.32, 0.7, 'sine', 0.08); }),
   surprise: () => play(t => { [523, 659, 784, 1046, 1318].forEach((f, i) => tone(f, t + i * 0.07, 0.25, 'triangle', 0.06)); }),
   rumbleHit: () => play(t => { noise(t, 1.2, 180, 0.3, 'lowpass'); tone(60, t, 1.0, 'sine', 0.2, 40); }),
-  stomp: () => play(t => { tone(75, t, 0.28, 'sine', 0.4, 38); noise(t, 0.18, 260, 0.25, 'lowpass'); tone(160, t, 0.06, 'square', 0.05, 90); })
+  stomp: () => play(t => { tone(75, t, 0.28, 'sine', 0.4, 38); noise(t, 0.18, 260, 0.25, 'lowpass'); tone(160, t, 0.06, 'square', 0.05, 90); }),
+  // ambience: a bird's chirp, a cricket's trill
+  bird: () => play(t => { const f = 3000 + arnd() * 2000; for (let i = 0; i < 2 + Math.floor(arnd() * 3); i++) tone(f * (1 + i * 0.08), t + i * 0.09, 0.06, 'sine', 0.012, f * 1.2); }),
+  cricket: () => play(t => { for (let i = 0; i < 6; i++) tone(4500, t + i * 0.05, 0.03, 'sine', 0.01); }),
 };
+// test hook: tests can't listen, so every sound asked for is written down in window.__sfx (newest last)
+window.__sfx = [];
+for (const k of Object.keys(sfx)) { const f = sfx[k]; sfx[k] = (...a) => { window.__sfx.push(k); if (window.__sfx.length > 400) window.__sfx.shift(); return f(...a); }; }
+
+// The continuous sounds, set every frame by the main loop: engines, jet whine, wind, birds and crickets.
+// mix: { roar, rumbleHz, engHz, eng, whineHz, whine, wind, birds, crickets } (levels 0 to about 1)
+let nextBird = 3, nextCricket = 2;
+function setMix(m, dt) {
+  window.__mix = m;
+  if (!actx || !soundOn) return;
+  const t = actx.currentTime;
+  rumbleGain.gain.setTargetAtTime(m.roar, t, 0.15); rumbleFilter.frequency.setTargetAtTime(m.rumbleHz, t, 0.2);
+  engOsc.frequency.setTargetAtTime(m.engHz, t, 0.3); engGain.gain.setTargetAtTime(m.eng * 0.06, t, 0.3);
+  whineOsc.frequency.setTargetAtTime(m.whineHz, t, 0.4); whineGain.gain.setTargetAtTime(m.whine * 0.012, t, 0.4);
+  windGain.gain.setTargetAtTime(m.wind * 0.05, t, 0.8); windFilter.frequency.setTargetAtTime(400 + 300 * Math.sin(t * 0.3), t, 1);
+  nextBird -= dt; nextCricket -= dt;
+  if (m.birds > 0 && nextBird <= 0) { nextBird = 4 + arnd() * 8; if (arnd() < m.birds) sfx.bird(); }
+  if (m.crickets > 0 && nextCricket <= 0) { nextCricket = 0.8 + arnd() * 2.5; if (arnd() < m.crickets) sfx.cricket(); }
+}
+function silence() { if (!actx) return; for (const g of [rumbleGain, engGain, whineGain, windGain]) g.gain.value = 0; }
+
 const soundBtn = document.getElementById('sound');
 soundBtn.addEventListener('click', () => {
   soundOn = !soundOn; soundBtn.textContent = soundOn ? 'Sound on' : 'Sound off'; soundBtn.setAttribute('aria-pressed', String(soundOn));
-  if (rumbleGain) rumbleGain.gain.value = 0;
+  silence();
 });
 
-export { actx, noise, play, rumbleFilter, rumbleGain, sfx, soundOn, tone };
+export { actx, noise, play, rumbleFilter, rumbleGain, setMix, sfx, soundOn, tone };

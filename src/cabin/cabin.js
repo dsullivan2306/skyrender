@@ -455,7 +455,7 @@ function runFlight(dt) {
   else if (f === 'roll') { wantSpeed = 38; if (t > 4) { cab.flight = 'climb'; cab.flightT = 0; say('Liftoff! We are flying!', 2); sfx.surprise(); } }
   else if (f === 'climb') { wantSpeed = 45; wantAlt = 4; wantPitch = -0.1; if (t > 9) { cab.flight = 'cruise'; cab.flightT = 0; say('Cruising high above the clouds. Time for snacks?', 2.5); updateCabUI(); } }
   else if (f === 'cruise') { wantSpeed = 50; wantAlt = 4; }
-  else if (f === 'descend') { wantSpeed = 34; wantAlt = 0; wantPitch = 0.05; if (cab.alt < 0.03) { cab.flight = 'landed'; cab.flightT = 0; say('Touchdown! Welcome to Jasper Junction. Thanks for flying Skyrender!', 3); sfx.ding(); updateCabUI(); } }
+  else if (f === 'descend') { wantSpeed = 34; wantAlt = 0; wantPitch = 0.05; if (cab.alt < 0.03) { cab.flight = 'landed'; cab.flightT = 0; sfx.chirp(); say('Touchdown! Welcome to Jasper Junction. Thanks for flying Skyrender!', 3); sfx.ding(); updateCabUI(); } }
   cab.speed += (wantSpeed - cab.speed) * Math.min(1, dt * 0.4);
   cab.alt += (wantAlt - cab.alt) * Math.min(1, dt * (f === 'descend' ? 0.35 : 0.25));
   cabRoot.rotation.x += (wantPitch - cabRoot.rotation.x) * Math.min(1, dt * 1.2);

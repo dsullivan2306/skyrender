@@ -22,13 +22,18 @@ addCar(roadSet, 'sedan', 0, 1, 10, 34, CAR_COLORS[5]);
 addCar(interSet, 'bus', I_LANES.ours[0], 1, 16, 30, 0xf2b81c);
 [['sedan', 0], ['pickup', 25], ['suv', -30], ['sedan', 50]].forEach(([k, z], i) => addCar(interSet, k, I_LANES.theirs[i % 2], -1, 15 + i * 1.5, z, CAR_COLORS[(i * 3 + 2) % 8]));
 let flow = 1;                       // the crash itself is S.crash (game/state.js)
+let passCool = 0;                                 // at most one passing-car sound every 3 seconds
 function moveTraffic(dt) {
+  passCool -= dt;
   flow += ((S.on.wreck ? 0 : 1) - flow) * Math.min(1, dt * 2);               // everybody stops for a wreck
   for (const c of cars) {
     if (S.crash && S.crash.car === c) continue;
     let rel = c.dir * c.v * flow - S.truckSpeed;
     if (c.dir > 0 && c.x === 0) rel = 0;                                    // the car ahead in our lane keeps its distance
-    c.z += rel * dt; if (c.z < -75) c.z += 150; if (c.z > 75) c.z -= 150;
+    const z0 = c.z;
+    c.z += rel * dt;
+    if (S.plan.to === 4 && c.x !== 0 && Math.sign(z0) !== Math.sign(c.z) && Math.abs(rel) > 3 && passCool <= 0) { sfx.passBy(Math.sign(c.x)); passCool = 3; }   // neee-owww
+    if (c.z < -75) c.z += 150; if (c.z > 75) c.z -= 150;
     c.g.position.set(c.x, 0, c.z); c.g.rotation.set(0, c.dir > 0 ? 0 : Math.PI, 0);
     c.g.userData.inner.rotation.set(0, 0, 0); c.g.userData.inner.position.y = c.g.userData.H / 2;
   }

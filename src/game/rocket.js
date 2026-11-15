@@ -15,7 +15,7 @@ function launchCaption() {
   if (S.alt < 60) return 'Clearing the launch tower';
   if (S.alt < 220) return 'Punching through the clouds';
   if (S.alt < 620) return 'Leaving the atmosphere';
-  return 'In space! Floating past the planets';
+  return 'In space! It\'s silent here: no air to carry sound';
 }
 const altitude = t => { const u = Math.max(0, t - 4.5); return Math.min(900, 2.2 * Math.pow(u, 2.6)); };
 
