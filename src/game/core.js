@@ -20,6 +20,7 @@ import { buildPuffs, emitPuff, runPuffs, stackTop } from './puffs.js';
 import { runTractor } from './tractor.js';
 import { runTrain } from './train.js';
 import { PLANE_LIFT, planeCaption, runHall, runPlane } from './plane.js';
+import { launchCaption, runCountdown, runEngines, runLaunchSmoke, runSwingArm, startRocket } from './rocket.js';
 
 // The truck world (truck/truck.js) and the plane cabin (cabin/cabin.js) are built after this file runs,
 // in the same order as before the split. The main loop still needs some of their pieces, so main.js
@@ -29,7 +30,6 @@ function link(parts) { Object.assign(linked, parts); }
 const skipBox = new Set(); rig.flames.forEach(g => g.traverse(o => { if (o.isMesh) skipBox.add(o); }));
 rig.jr.j.traverse(o => { if (o.isMesh) skipBox.add(o); });      // Jr. flies off on its own; don't frame or ground on it
 
-const LT = 18;
 // Fun toggles for each mode. 'toggle' buttons stay on or off; 'press' buttons do something once.
 const ACTIONS = [
   [{ id: 'door', label: 'Open door' }, { id: 'gear', label: 'Gear up' }, { id: 'lights', label: 'Flash lights' }, { id: 'peek', label: 'See inside airport' }, { id: 'goin', label: 'Go inside airport' }, { id: 'board', label: 'Board the plane', press: true }],
@@ -68,17 +68,6 @@ function go(m) {
   S.launchT = 0; S.planeT = 0;
   startMorph(m);
 }
-
-function launchCaption() {
-  if (S.launchT < 3) return 'Rocket mode. Countdown!';
-  if (S.launchT < 4.5) return 'Ignition!';
-  if (S.alt < 6) return 'Liftoff!';
-  if (S.alt < 60) return 'Clearing the launch tower';
-  if (S.alt < 220) return 'Punching through the clouds';
-  if (S.alt < 620) return 'Leaving the atmosphere';
-  return 'In space! Floating past the planets';
-}
-const altitude = t => { const u = Math.max(0, t - 4.5); return Math.min(900, 2.2 * Math.pow(u, 2.6)); };
 
 function caption() {
   if (S.flash && S.flash.until > S.clockT) return S.flash.text;
@@ -435,11 +424,7 @@ function frame() {
 
   const air = runPlane(sdt, live);            // 0 on the ground, 1 cruising above the clouds
 
-  // Rocket: countdown starts by itself once the rocket is standing on the pad
-  const onPad = S.plan.to === 3 && live && S.pending === null;
-  if (onPad) S.launchT = Math.min(LT, S.launchT + sdt);
-  S.alt = S.plan.to === 3 && (settled() || S.pending !== null) ? altitude(S.launchT) : 0;
-  const sp = clamp01((S.alt - 150) / 450);             // 0 = sky, 1 = space
+  const { onPad, sp } = startRocket(sdt, live);   // sp: 0 in the sky, 1 in space
 
   runTrain(dt, sdt, live);
   S.crank += (S.trainSpeed + S.truckSpeed + S.tractorSpeed * 0.6 + (S.parkMoving && S.plan.to !== 1 && S.plan.to !== 3 ? H_SPEED * (S.parkState === 3 ? -1 : 1) : 0)) / 0.4 * sdt;      // the same big wheels drive the train and the truck
@@ -489,10 +474,7 @@ function frame() {
   roadSet.scale.y = Math.max(0.001, S.env.road * (1 - ik) * away); roadSet.visible = S.env.road * (1 - ik) * away > 0.001;
   interSet.scale.y = Math.max(0.001, S.env.road * ik * away); interSet.visible = S.env.road * ik * away > 0.001;
   farmSet.scale.y = Math.max(0.001, S.env.farm * away); farmSet.visible = S.env.farm * away > 0.001;
-  // The swing arm stays at the hatch until the countdown (or until Jasper swings it away)
-  const armWant = S.plan.to === 3 && settled() && !S.on.arm && S.launchT < 1.2 ? 1 : 0;
-  S.armK += (armWant - S.armK) * Math.min(1, dt * 1.5);
-  swingArm.rotation.y = -1.45 * (1 - S.armK);
+  runSwingArm(dt);
   cloudSet.position.y = 40 * (1 - air) - S.alt * 0.7;
   cloudSet.visible = S.alt < 500;
   cloudMat.opacity = 0.5 + 0.5 * air;
@@ -530,16 +512,7 @@ function frame() {
   for (const m of planetMats) m.opacity = sp;
   earth.rotation.y += dt * 0.02; giant.rotation.y += dt * 0.03;
 
-  // Engines: countdown -> ignition -> full burn -> gentle cruise in orbit
-  const counting = onPad && S.launchT < 3;
-  if (onPad) S.thrust = S.launchT < 3 ? 0 : S.launchT < 4.5 ? (S.launchT - 3) / 1.5 : sp >= 1 ? Math.max(0.35, S.thrust - dt * 0.5) : 1;
-  else S.thrust = S.pending !== null && S.plan.to === 3 ? 0.6 : S.parkMoving && S.plan.to === 3 ? 0.3 : 0;
-  const flick = reduceMotion ? 1 : 0.85 + Math.random() * 0.3;
-  for (const f of rig.flames) {
-    f.visible = S.thrust > 0.01;
-    const w = 0.5 + 0.5 * S.thrust;
-    f.scale.set(w * flick, w * flick, S.thrust * flick * (S.launchT > 4.5 ? 1.25 : 1));
-  }
+  runEngines(dt, onPad, sp);
   rig.M.glow.emissiveIntensity = 0.35 + 2.5 * S.thrust + 0.6 * S.planeSpeed / 28;
   const lampOn = (S.env.track > 0.5 && !S.on.lamp) || ((S.plan.to === 4 || S.plan.to === 5) && S.on.lights && !S.on.wreck);
   rig.M.marker.emissiveIntensity = (S.plan.to === 4 || S.plan.to === 5) && S.on.lights ? (S.on.wreck ? (Math.sin(S.clockT * 8) > 0 ? 2.5 : 0.1) : 1.8) : 0.35;   // hazards blink after a crash
@@ -551,18 +524,9 @@ function frame() {
   const strobe = S.plan.to === 0 && S.on.lights && Math.sin(S.clockT * 12) > 0.6;
   rig.M.navR.emissiveIntensity = rig.M.navG.emissiveIntensity = strobe ? 3 : 0.6;
   rig.M.beacon.emissiveIntensity = S.plan.to === 0 && S.on.lights ? (Math.sin(S.clockT * 7) > 0 ? 2.5 : 0.2) : 0.8;
-  const cd = counting ? String(3 - Math.floor(S.launchT)) : (onPad && S.launchT < 5.5 && S.launchT >= 3 ? 'Blast off!' : '');
-  if (countdown.textContent !== cd) { if (cd) sfx.beep(cd === 'Blast off!'); countdown.textContent = cd; }
+  runCountdown(onPad);
 
-  // Launch smoke billows at ignition and stays on the pad as it climbs away
-  const puffK = S.plan.to === 3 && (onPad || S.pending !== null) ? clamp01((S.launchT - 3) / 3) : 0;
-  smokeMat.opacity = 0.75 * puffK * (1 - clamp01((S.launchT - 10) / 6));
-  for (const m of smoke) {
-    m.visible = puffK > 0;
-    const d = m.userData.d + puffK * 7;
-    m.position.set(Math.cos(m.userData.a) * d, 0.6 + puffK * 1.2, Math.sin(m.userData.a) * d);
-    m.scale.setScalar(m.userData.s * (0.4 + puffK * 2.2));
-  }
+  runLaunchSmoke(onPad);
 
   // ---- set it down: lowest part rests on the ground, or wheel treads on the rail tops ----
   flyer.position.set(0, 0, 0); flyer.rotation.set(0, 0, 0);
