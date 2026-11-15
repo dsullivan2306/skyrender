@@ -1,5 +1,6 @@
 // Click-through test harness for Skyrender.
 // usage: node tests/shoot.js tests/scenarios/<name>.js        (env: PAGE=path/to/page.html, DPR=2)
+// IPAD=1 runs it in WebKit (the engine inside Safari) at iPad Air size with touch, and saves shots to tests/shots-ipad/.
 // Tests the built page (dist/index.html) by default, so run `npm run build` first (`npm test` does).
 // The page is served from a tiny local web server, because browsers won't load modules from file://.
 // A scenario exports default async ({ page, step, shot, drag, click, act }) => {}.
@@ -8,7 +9,7 @@
 //   click(m)  press mode button m (0 plane, 1 robot, 2 train, 3 rocket, 4 truck, 5 tractor)
 //   act(lbl)  press a button by its visible label
 // Prints "errors [...]" at the end: any page error is a failure.
-import { chromium } from 'playwright';
+import { chromium, webkit } from 'playwright';
 import fs from 'fs';
 import path from 'path';
 import http from 'http';
@@ -27,9 +28,11 @@ const server = http.createServer((req, res) => {
 await new Promise(r => server.listen(0, '127.0.0.1', r));
 const url = `http://127.0.0.1:${server.address().port}/${path.basename(pagePath)}`;
 
-fs.mkdirSync(path.join(here, 'shots'), { recursive: true });
-const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
-const page = await browser.newPage({ viewport: { width: 820, height: 560 }, deviceScaleFactor: +(process.env.DPR || 1) });
+const ipad = !!process.env.IPAD, shotDir = path.join(here, ipad ? 'shots-ipad' : 'shots');
+fs.mkdirSync(shotDir, { recursive: true });
+const browser = ipad ? await webkit.launch() : await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+const page = await browser.newPage(ipad ? { viewport: { width: 1180, height: 820 }, deviceScaleFactor: +(process.env.DPR || 1), hasTouch: true }
+  : { viewport: { width: 820, height: 560 }, deviceScaleFactor: +(process.env.DPR || 1) });
 const errs = []; page.on('pageerror', e => errs.push(e.message));
 // serve three.js locally if a page still loads it from the web (the old single file did); block web fonts
 await page.route('**/three.min.js', r => r.fulfill({ body: fs.readFileSync(path.join(root, 'node_modules/three/build/three.min.js')), contentType: 'application/javascript' }));
@@ -56,10 +59,12 @@ await page.addInitScript(() => {
 await page.goto(url);
 await page.waitForFunction(() => window.__raf);
 const step = n => page.evaluate(n => window.__step(n), n);
-const shot = async name => { await page.screenshot({ path: path.join(here, 'shots', name + '.png') }); console.log(name, '|', await page.$eval('#step', e => e.textContent)); };
+const shot = async name => { await page.screenshot({ path: path.join(shotDir, name + '.png') }); console.log(name, '|', await page.$eval('#step', e => e.textContent)); };
 const drag = async (dx, dy) => { await page.mouse.move(400, 200); await page.mouse.down(); await page.mouse.move(400 + dx, 200 + dy, { steps: 4 }); await page.mouse.up(); };
-const click = m => page.click(`[data-mode="${m}"]`);
-const act = async label => { await page.getByRole('button', { name: label, exact: true }).click(); };
+// on the iPad run, buttons are tapped with a finger instead of clicked
+const click = m => ipad ? page.tap(`[data-mode="${m}"]`) : page.click(`[data-mode="${m}"]`);
+const act = async label => { const b = page.getByRole('button', { name: label, exact: true }); await (ipad ? b.tap() : b.click()); };
+if (ipad) page.click = (sel, opts) => page.tap(sel, opts);   // every press in a scenario is a finger tap on the iPad run
 const scenario = (await import(pathToFileURL(path.resolve(process.argv[2])).href)).default;
 await scenario({ page, step, shot, drag, click, act });
 console.log('errors', errs);

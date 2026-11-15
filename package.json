@@ -12,11 +12,13 @@
     "test:park": "node tests/shoot.js tests/scenarios/park.js",
     "test:airport": "node tests/shoot.js tests/scenarios/airport.js",
     "test:cabin": "node tests/shoot.js tests/scenarios/plane-cabin.js && node tests/shoot.js tests/scenarios/reboard.js && node tests/shoot.js tests/scenarios/cancel-boarding.js",
-    "test": "npm run build && npm run test:rig && npm run test:modes && npm run test:park && npm run test:airport && npm run test:cabin && npm run test:install && npm run test:shots",
+    "test": "npm run build && npm run test:rig && npm run test:modes && npm run test:park && npm run test:airport && npm run test:cabin && npm run test:install && npm run test:shots && npm run test:ipad",
     "icons": "node scripts/make-icons.js",
     "test:install": "node tests/shoot.js tests/scenarios/install.js",
     "test:shots": "node tests/compare.js",
-    "baseline": "node tests/compare.js --approve"
+    "baseline": "node tests/compare.js --approve",
+    "test:ipad": "IPAD=1 node tests/shoot.js tests/scenarios/all-modes.js && IPAD=1 node tests/shoot.js tests/scenarios/plane-cabin.js",
+    "perf": "node tests/perf.js"
   },
   "dependencies": {
     "three": "0.128.0"

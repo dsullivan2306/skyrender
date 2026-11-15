@@ -1,5 +1,6 @@
 node_modules/
 dist/
 tests/shots/
+tests/shots-ipad/
 tests/compare/
 .DS_Store
