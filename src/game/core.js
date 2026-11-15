@@ -401,19 +401,7 @@ function frame() {
 
   runTractor(dt, sdt, live);
 
-  // Truck: buckle up, then cruise down the road
-  if (S.plan.to === 4 && live) S.truckT += sdt;
-  let wantTruck = S.plan.to === 4 && live && S.truckT > 1.5 && !S.on.wreck && !S.on.stop ? 10 + 6 * (S.blend.inter || 0) : 0;
-  if (S.crash && S.crash.wait) wantTruck = Math.max(12, wantTruck);           // keep rolling toward the building
-  if (S.crash && S.crash.type === 'bld' && !S.crash.wait) S.truckSpeed = 0;
-  S.truckSpeed += (wantTruck - S.truckSpeed) * Math.min(1, dt * (wantTruck > S.truckSpeed ? 0.5 : 1.8));
-  if (S.truckSpeed < 0.01) S.truckSpeed = 0;
-  S.roadTravel += S.truckSpeed * sdt;
-  laneSet.position.z = -(S.roadTravel % LANE_DASH);
-  fenceSet.position.z = -(S.roadTravel % FENCE);
-  roadProps.position.z = wrap(-S.roadTravel, 60);
-  cBld.position.z = iBld.position.z = iBldFar.position.z = wrap(-S.roadTravel, BLD_PERIOD / 2);
-  iDash.position.z = -(S.roadTravel % I_DASH); iPosts.position.z = -(S.roadTravel % I_POST); iProps.position.z = wrap(-S.roadTravel, I_SIGN / 2);
+  linked.runTruck(dt, sdt, live);       // the big rig drives (truck/truck.js)
 
   // Everything on the ground slides past whatever is moving
   const groundSpeed = S.trainSpeed + S.truckSpeed + S.tractorSpeed + S.planeSpeed * (1 - air);

@@ -1,9 +1,9 @@
 import * as THREE from 'three';
-import { I_LANES, interSet, makeCar, roadSet } from '../scenery/road.js';
+import { FENCE, I_DASH, I_LANES, I_POST, I_SIGN, LANE_DASH, fenceSet, iDash, iPosts, iProps, interSet, laneSet, makeCar, roadProps, roadSet } from '../scenery/road.js';
 import { makePerson, walkPose } from '../people/people.js';
-import { BLD, buildings } from '../scenery/buildings.js';
+import { BLD, BLD_PERIOD, buildings, cBld, iBld, iBldFar } from '../scenery/buildings.js';
 import { sfx } from '../audio/audio.js';
-import { S, c01, lerp, rig, say, sm } from '../game/state.js';
+import { S, c01, lerp, rig, say, sm, wrap } from '../game/state.js';
 import { emitPuff } from '../game/puffs.js';
 
 // ---------- traffic ----------
@@ -289,4 +289,22 @@ function wreckPose(w) {
   fly.forEach((f, i) => { if (!moves[i]) return; f.j.position.add(moves[i]); f.j.rotation.x += f.spin[0] * k; f.j.rotation.y += f.spin[1] * k; f.j.rotation.z += f.spin[2] * k; });
 }
 
-export { hitNow, moveTraffic, runCrash, runWalkers, scatter, startCrash, veer, wreckPose };
+// The big rig drives, every frame: buckle up, then cruise; the road, fences, signs and buildings slide by.
+// Called from the main loop through linked.runTruck.
+function runTruck(dt, sdt, live) {
+  // Truck: buckle up, then cruise down the road
+  if (S.plan.to === 4 && live) S.truckT += sdt;
+  let wantTruck = S.plan.to === 4 && live && S.truckT > 1.5 && !S.on.wreck && !S.on.stop ? 10 + 6 * (S.blend.inter || 0) : 0;
+  if (S.crash && S.crash.wait) wantTruck = Math.max(12, wantTruck);           // keep rolling toward the building
+  if (S.crash && S.crash.type === 'bld' && !S.crash.wait) S.truckSpeed = 0;
+  S.truckSpeed += (wantTruck - S.truckSpeed) * Math.min(1, dt * (wantTruck > S.truckSpeed ? 0.5 : 1.8));
+  if (S.truckSpeed < 0.01) S.truckSpeed = 0;
+  S.roadTravel += S.truckSpeed * sdt;
+  laneSet.position.z = -(S.roadTravel % LANE_DASH);
+  fenceSet.position.z = -(S.roadTravel % FENCE);
+  roadProps.position.z = wrap(-S.roadTravel, 60);
+  cBld.position.z = iBld.position.z = iBldFar.position.z = wrap(-S.roadTravel, BLD_PERIOD / 2);
+  iDash.position.z = -(S.roadTravel % I_DASH); iPosts.position.z = -(S.roadTravel % I_POST); iProps.position.z = wrap(-S.roadTravel, I_SIGN / 2);
+}
+
+export { hitNow, runTruck, moveTraffic, runCrash, runWalkers, scatter, startCrash, veer, wreckPose };
