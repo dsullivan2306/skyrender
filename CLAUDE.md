@@ -61,16 +61,22 @@ The goal behind each request: Jasper sees his own ideas become real. When choosi
 - `audio/audio.js`: `tone`, `noise`, `play` and the `sfx` object.
 - `game/state.js`: the shared state `S` (`S.plan`, `S.planeT`, `S.on.lights`, `S.parkState`, ...), the machine itself (`rig`, `flyer`), helpers (`ease`, `sm`, `c01`, `wrap`, `lerpJ`), `say`, `settled`, `airborne`, and `linked` (truck and cabin pieces the loop calls). Any module changes the toy by writing to `S`; no setters. It runs right before `core.js`, so the machine is built at the same moment as always.
 - `game/puffs.js`: the shared puff pool: `emitPuff`, train steam, big rig smoke, and floating them away.
-- One module per world, called from the main loop at the same spot as always (untangling is in progress; the rest of the worlds are still in `core.js`):
+- One module per world, each called from the main loop at the same spot as always:
   - `game/plane.js`: takeoff and climb (`runPlane`), `planeCaption`, `PLANE_LIFT`, and `runHall` (airport interior: "See inside airport", "Go inside airport").
+  - `game/rocket.js`: countdown and climb (`startRocket`), engines and flames, countdown numbers, swing arm, launch smoke, `launchCaption`.
   - `game/train.js`: `runTrain`. `game/tractor.js`: `runTractor`, with the farm animals.
-  - Order inside `game/`: `state.js`, then `puffs.js`, then the world modules, then `core.js`. A world module imports only from the ones before it and holds only functions at the top level (anything built at load time would change the build order).
-- `game/core.js`: the toy itself: buttons, captions, the main loop.
-  - State, `startMorph` and `go`, captions, mode and season buttons, day and night.
-  - `startPark` / `runPark` (garage and robot house; plane mode redirects to boarding instead).
-  - `ACTIONS`: per-mode action buttons. `doAction`, `applyToggles` (overlays applied after `poseRig`), `on[id]` / `blend[id]`.
-  - Camera drag, steam puffs, Skyrender Jr. (`flyJr`).
-  - `function frame()`: the main loop. The camera fit is at the end. When `cab.active` is true it renders `cabinScene` instead of the main scene.
+  - `game/robot.js`: `runRobot`: waving, GIANT and tiny sizes, marching.
+  - `game/jr.js`: `flyJr`, Skyrender Jr.'s flight from the trailer and back.
+  - `game/park.js`: bedtime: `requestPark`, `runPark` (garage and robot house; plane mode goes to boarding instead). It calls `go`, `buildActions` and `setButtons` back through `linked`.
+  - `game/night.js`: Day/Night button, moon, headlight `beam`, `applyNight`, and `runSky` (sky blending into space). `buildNight()` is called from core so things are built at the same moment as always.
+  - The big rig's driving is `runTruck` in `truck/truck.js`, reached through `linked`.
+  - Order inside `game/`: `state.js`, then `puffs.js`, then the world modules, then `core.js`. A world module imports only from the ones before it and holds only functions at the top level; anything built (meshes, lights) goes in a build function core calls at the old spot, because build order changes the pictures.
+- `game/core.js`: what ties the worlds together.
+  - `startMorph` and `go`, mode and season buttons.
+  - `ACTIONS`: per-mode action buttons. `doAction` (what each button does), `applyToggles` (overlays applied after `poseRig`), `S.on[id]` / `S.blend[id]`.
+  - `caption()`: what the caption line says, by mode. Still to untangle: each world's buttons and captions could move into its world module.
+  - Camera drag, the wheel crank shared by train, truck and tractor.
+  - `function frame()`: the main loop. The camera fit is at the end. When `linked.cab.active` is true it renders `cabinScene` instead of the main scene.
   - `link()` puts the truck and cabin pieces the loop calls onto `linked`.
 - `truck/truck.js`: traffic, buildings in a crash, crash timeline (a pure function of `crash.t`, so it can rewind), police, bad guy, airbag, sidewalk walkers.
 - `cabin/cabin.js`: INSIDE SKYRENDER, the plane cabin world.
