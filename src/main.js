@@ -21,6 +21,7 @@ import './audio/audio.js';           // synthesized sound
 import { link, start } from './game/core.js';   // the toy itself: state, buttons, toggles, main loop
 import * as truck from './truck/truck.js';       // traffic, crashes, police, walkers
 import * as cabin from './cabin/cabin.js';       // INSIDE SKYRENDER: boarding and the plane cabin
+import './ideas/ideas.js';                       // Jasper's ideas that came true (page only, no 3D)
 
 link({ ...truck, ...cabin });
 start();

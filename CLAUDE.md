@@ -30,6 +30,7 @@ The goal behind each request: Jasper sees his own ideas become real. When choosi
 - **Before building a Jasper idea, ask four questions** and answer them in the commit message: (1) What would a top toy designer add that he didn't ask for? (2) What real-world detail would make it feel true (how a real ladder extends, what a real signal means)? (3) Which method or field does this best (animation timing, sound design, real procedures)? (4) What, besides my own opinion, shows it works (a test, a screenshot, how Jasper plays with it)? Use other fields to find methods, not to play characters.
 - **Watching Jasper play beats any request.** When Daniel shares what Jasper did (pressed Crash! ten times, got bored in the cabin), treat it as the best input there is.
 - **Jasper's privacy.** The project is public. Nothing about how Jasper plays ever leaves his iPad; nothing personal about him goes in the code beyond his first name.
+- **Jasper's ideas page.** Every idea of Jasper's that we build gets an entry in `src/ideas/list.js` in the same commit: his words exactly as Daniel gives them (never made up), the date, and one short kid-voice line about what it does. The button appears once the list has an entry.
 - **One Jasper request = one git commit.** Quote his request in the commit message, in his words.
 - **Run the tests before every commit:** `npm test` builds the page, then runs the rig check plus the click-through scenarios against `dist/`: all modes and every action button, garage and robot house, airport, plane cabin, reboarding, cancelled boarding, and the home screen install check (manifest and icons). Each scenario prints `errors []` on success. Last, `npm run test:shots` compares every screenshot with the approved one in `tests/baseline/`. To run one scenario (for example `npm run test:park`), run `npm run build` first.
 - **Upload straight away:** after `npm test` passes and the commit is made, push to `main` (`git push`) without asking. Daniel gave this standing OK on 2026-11-15. The site updates about 2 minutes later; check the run with `gh run watch`. Anything beyond a normal push (force-push, rewriting history, changing GitHub settings) still needs his OK first.
@@ -84,6 +85,7 @@ The goal behind each request: Jasper sees his own ideas become real. When choosi
   - Boarding: `startBoarding`, `runBoarding`, `noseTuck`.
   - `updateCabin`, the seat picker, bins and surprises, food cart, cockpit buttons (`NAMED` and `SILLY`), flight states (gate, taxi, roll, climb, cruise, descend, landed), clouds, night, rainbow.
   - `window.__cab` is a test hook.
+- `ideas/ideas.js` and `ideas/list.js`: the "Jasper's ideas" page (page only, no 3D). `window.__ideasTest` is a test hook.
 - `style.css`: the page styles with the light and dark color tokens.
 
 Outside `src/`: `public/` is copied as is into the built page. It holds `manifest.webmanifest` (home screen install) and the app icon: `icon.svg` is the team crest from `rig/textures.js`, and `npm run icons` redraws `icon-180.png` (iPad), `icon-192.png` and `icon-512.png` from it (`scripts/make-icons.js`).

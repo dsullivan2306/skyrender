@@ -52,3 +52,16 @@ body.in-cabin .side, body.in-cabin .controls { display: none; }
 .pick-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
 .pick-actions button { padding: 9px 15px; font-size: .9rem; }
 #cabFade { position: fixed; inset: 0; background: #0d1114; opacity: 0; pointer-events: none; transition: opacity .35s; z-index: 4; }
+
+/* Jasper's ideas */
+.ideas-btn { padding: 6px 12px; font-size: .8rem; margin-top: 6px; pointer-events: auto; }   /* the bar itself lets taps through to the 3D view */
+#ideas { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 6; width: min(460px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow-y: auto; box-sizing: border-box;
+  background: var(--bar-bg); backdrop-filter: blur(10px); border: 1.5px solid var(--ink); border-radius: 18px; padding: 20px 22px; }
+.ideas-title { margin: 0 0 14px; font-weight: 600; font-size: 1.2rem; color: var(--accent); }
+.ideas-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 14px; }
+.ideas-list li { border-top: 1px solid var(--muted); padding-top: 12px; }
+.ideas-words { margin: 0; font-size: 1.1rem; font-weight: 600; }
+.ideas-what { margin: 4px 0 0; font-size: .95rem; }
+.ideas-when { margin: 4px 0 0; font-size: .8rem; color: var(--muted); }
+.ideas-actions { display: flex; justify-content: flex-end; margin-top: 16px; }
+.ideas-actions button { padding: 9px 18px; font-size: .9rem; }
