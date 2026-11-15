@@ -4,7 +4,7 @@ import { makePerson, walkPose } from '../people/people.js';
 import { BLD, buildings } from '../scenery/buildings.js';
 import { sfx } from '../audio/audio.js';
 import { S, c01, lerp, rig, say, sm } from '../game/state.js';
-import { emitPuff } from '../game/core.js';
+import { emitPuff } from '../game/puffs.js';
 
 // ---------- traffic ----------
 // The big rig stays put and the world slides past, so each car moves at (its speed - our speed).

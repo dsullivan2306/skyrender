@@ -15,7 +15,8 @@ import { SEASON_ORDER, applySeason, fallActive, fallGeo, fallPos, fallSeed, fall
 import { birdSet, cloudMat, cloudSet, clouds, flocks, puff } from '../scenery/sky.js';
 import { atmoMat, earth, earthMat, giant, moonMat, planetMats, smoke, smokeMat, space, spaceBot, spaceTop, starMat } from '../scenery/space.js';
 import { actx, rumbleFilter, rumbleGain, sfx, soundOn } from '../audio/audio.js';
-import { ENV, S, airborne, c01, clamp01, ease, flyer, lerp, lerpJ, linked, rig, say, settled, sm, targetMode, wrap } from './state.js';
+import { ENV, S, airborne, box, c01, clamp01, ease, flyer, lerp, lerpJ, linked, rig, say, settled, sm, targetMode, wrap } from './state.js';
+import { buildPuffs, emitPuff, runPuffs, stackTop } from './puffs.js';
 
 // The truck world (truck/truck.js) and the plane cabin (cabin/cabin.js) are built after this file runs,
 // in the same order as before the split. The main loop still needs some of their pieces, so main.js
@@ -36,7 +37,7 @@ const ACTIONS = [
   [{ id: 'honk', label: 'Honk', press: true }, { id: 'plow', label: 'Plow' }, { id: 'spray', label: 'Spray' }, { id: 'moo', label: 'Animal sounds', press: true }, { id: 'cab', label: 'Open cab' }, { id: 'lights', label: 'Lights' }, { id: 'stop', label: 'Stop tractor' }]
 ];
 
-const box = new THREE.Box3(), center = new THREE.Vector3();
+const center = new THREE.Vector3();
 const target3 = new THREE.Vector3(0, 1.2, 0);
 
 
@@ -343,24 +344,7 @@ function resize() {
 }
 addEventListener('resize', resize); resize();
 
-// ---------- steam puffs from the smokestack ----------
-const puffs = [];
-for (let i = 0; i < 46; i++) {
-  const m = new THREE.Mesh(puff, new THREE.MeshStandardMaterial({ color: 0xf2f2ee, roughness: 1, transparent: true, opacity: 0, depthWrite: false }));
-  m.visible = false; scene.add(m); puffs.push({ m, life: 0 });
-}
-let puffClock = 0, puffNext = 0;
-const stackTop = new THREE.Vector3();
-const stackTip = new THREE.Vector3(0, 0, 0.5);
-function emitPuff(big, from, color) {
-  const p = puffs.find(q => q.life <= 0); if (!p) return;
-  if (from && from.isVector3) p.m.position.copy(from);
-  else if (from) { stackTop.copy(stackTip).applyMatrix4(from.matrixWorld); p.m.position.copy(stackTop); }
-  else if (color) { box.getCenter(stackTop); p.m.position.set(stackTop.x + (Math.random() - 0.5) * 6, 0.6, stackTop.z + (Math.random() - 0.5) * 8); }
-  else { rig.stack.getWorldPosition(stackTop); p.m.position.set(stackTop.x, stackTop.y + 0.4, stackTop.z); }
-  p.m.material.color.setHex(color || 0xf2f2ee);
-  p.life = 1; p.big = typeof big === 'number' ? big : big ? 1.6 : 1; p.m.visible = true;
-}
+buildPuffs();                 // the steam puff pool (game/puffs.js), built here as always
 
 
 
@@ -692,26 +676,7 @@ function frame() {
   }
   sky.position.copy(camera.position);
 
-  // Steam: gentle puffs at the station, faster chuffs as the train speeds up
-  const steamy = S.env.track > 0.99 && S.plan.to === 2;
-  puffClock += sdt;
-  if (steamy && puffClock >= puffNext) { emitPuff(S.trainSpeed < 1); if (S.trainSpeed > 0.5) sfx.chuff(Math.min(1, S.trainSpeed / 6)); puffClock = 0; puffNext = S.trainSpeed > 0.5 ? Math.max(0.12, 1.4 / (S.trainSpeed / 0.4) * Math.PI) : 0.9; }
-  // Big rig: black smoke chugs out of the chrome stacks
-  if (S.plan.to === 4 && settled() && S.on.smoke && !S.on.wreck && rig.truckBits.stacks) {
-    S.smokeClock += sdt;
-    if (S.smokeClock > 0.1) { S.smokeClock = 0; const st = rig.truckBits.stacks[Math.random() < 0.5 ? 0 : 1]; emitPuff(0.45 + Math.random() * 0.25, st, 0x3b3b3d); }
-  }
-  for (const p of puffs) {
-    if (p.life <= 0) continue;
-    p.life -= sdt * 0.42;
-    p.m.position.y += sdt * (1.1 + 0.4 * p.big);
-    p.m.position.z -= sdt * (S.trainSpeed * 0.95 + S.truckSpeed * 0.95 + S.tractorSpeed * 0.95 + 0.4);
-    p.m.position.x += sdt * 0.15;
-    const age = 1 - p.life;
-    p.m.scale.setScalar((0.22 + age * 1.3) * p.big);
-    p.m.material.opacity = 0.85 * Math.min(1, age * 6) * Math.max(0, p.life);
-    if (p.life <= 0) p.m.visible = false;
-  }
+  runPuffs(sdt);
 
   for (const f of rig.fans) f.rotation.z += dt * (5 + 14 * S.planeSpeed / 28 + 10 * air);
   if (rumbleGain && soundOn) {                         // rocket roar, jet whoosh, truck engine
@@ -755,4 +720,4 @@ function start() {
   frame();
 }
 
-export { buildActions, emitPuff, link, start };
+export { buildActions, link, start };

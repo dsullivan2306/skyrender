@@ -70,10 +70,11 @@ S.tt = S.plan.T;
 // Pieces of the truck world and the plane cabin that the main loop calls. Those modules are built after
 // game/core.js, so main.js hands them over with link() (in core.js) before the first frame.
 const linked = {};
+const box = new THREE.Box3();           // the toy's bounding box this frame, measured in the main loop
 
 const settled = () => S.tt >= S.plan.T;
 const targetMode = () => S.pending ?? S.plan.to;
 const airborne = () => settled() && ((S.plan.to === 3 && S.launchT > 4.5) || (S.plan.to === 0 && S.planeT > 2));
 function say(text, secs = 1.6) { S.flash = { text, until: S.clockT + secs }; }
 
-export { ENV, S, airborne, c01, clamp01, ease, flyer, lerp, lerpJ, linked, rig, say, settled, sm, targetMode, wrap };
+export { ENV, S, box, airborne, c01, clamp01, ease, flyer, lerp, lerpJ, linked, rig, say, settled, sm, targetMode, wrap };
