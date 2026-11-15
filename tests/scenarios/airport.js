@@ -1,4 +1,4 @@
-module.exports = async ({ page, step, shot, click, act, drag }) => {
+export default async ({ page, step, shot, click, act, drag }) => {
   await step(30);
   await act('See inside airport'); await step(80); await shot('a1-peek'); await drag(-200, 0); await step(2); await shot('a2-peek');
   await act('See inside airport'); await step(80); await shot('a3-back');

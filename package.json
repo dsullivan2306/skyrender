@@ -1,17 +1,24 @@
 {
   "name": "skyrender",
   "private": true,
+  "type": "module",
   "description": "Skyrender: Jasper's transforming toy (plane, robot, train, rocket, big rig, Skyfly tractor)",
   "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
     "test:rig": "node tests/rigtest.js",
     "test:modes": "node tests/shoot.js tests/scenarios/all-modes.js",
     "test:park": "node tests/shoot.js tests/scenarios/park.js",
     "test:airport": "node tests/shoot.js tests/scenarios/airport.js",
     "test:cabin": "node tests/shoot.js tests/scenarios/plane-cabin.js && node tests/shoot.js tests/scenarios/reboard.js && node tests/shoot.js tests/scenarios/cancel-boarding.js",
-    "test": "npm run test:rig && npm run test:modes && npm run test:park && npm run test:airport && npm run test:cabin"
+    "test": "npm run build && npm run test:rig && npm run test:modes && npm run test:park && npm run test:airport && npm run test:cabin"
+  },
+  "dependencies": {
+    "three": "0.128.0"
   },
   "devDependencies": {
-    "three": "0.128.0",
-    "playwright": "^1.47.0"
+    "playwright": "^1.47.0",
+    "vite": "^8.3.8"
   }
 }

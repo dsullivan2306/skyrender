@@ -1,4 +1,4 @@
-module.exports = async ({ page, step, shot, click }) => {
+export default async ({ page, step, shot, click }) => {
   const order = [5, 4, 2, 0, 5, 3, 1, 5, 4, 0, 2, 3, 5, 1, 2, 4, 3, 0, 1, 5, 0];
   for (const m of order) {
     await click(m); await step(420);

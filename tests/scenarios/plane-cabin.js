@@ -1,4 +1,4 @@
-module.exports = async ({ page, step, shot, act }) => {
+export default async ({ page, step, shot, act }) => {
   await step(40); await page.click('#park'); await step(260); await page.waitForTimeout(500); await step(5); await shot('f1');
   await page.evaluate(() => window.__cab.openSeatPicker(window.__cab.travelers[2])); await act('Surprise me'); await step(200); await shot('f2');
   await act('Seatbelt sign'); await act('Cockpit'); await step(30);

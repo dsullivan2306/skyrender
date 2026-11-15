@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Skyrender — plane, robot, train, rocket, truck</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Karla:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./src/style.css">
+</head>
+<body>
+<div id="stage" aria-label="3D view of an airliner that transforms between a plane, a robot, a train and a rocket"></div>
+<div id="countdown" aria-live="assertive"></div>
+<div class="side">
+  <button id="season" type="button" aria-label="Change the season">Summer</button>
+  <button id="daynight" type="button" aria-label="Switch between day and night">Day</button>
+  <button id="sound" type="button" aria-pressed="true">Sound on</button>
+  <button id="park" type="button" aria-label="Put Skyrender away for the night">Put away</button>
+  <div id="acts" role="group" aria-label="Things to try"></div>
+</div>
+<div class="bar">
+  <div>
+    <p class="name">Skyrender</p>
+    <p class="step" id="step" aria-live="polite">Parked at the gate</p>
+  </div>
+  <div class="controls">
+    <label class="scrub">Scrub <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="Progress through the current transformation"></label>
+    <div class="modes" role="group" aria-label="Mode">
+      <button type="button" data-mode="0" aria-pressed="true">Plane</button>
+      <button type="button" data-mode="1" aria-pressed="false">Robot</button>
+      <button type="button" data-mode="2" aria-pressed="false">Train</button>
+      <button type="button" data-mode="3" aria-pressed="false">Rocket</button>
+      <button type="button" data-mode="4" aria-pressed="false">Truck</button>
+      <button type="button" data-mode="5" aria-pressed="false">Tractor</button>
+    </div>
+  </div>
+</div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>

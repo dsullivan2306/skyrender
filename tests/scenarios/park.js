@@ -1,4 +1,4 @@
-module.exports = async ({ page, step, shot, click, act }) => {
+export default async ({ page, step, shot, click, act }) => {
   const park = () => page.click('#park');
   await click(4); await step(760);
   await park(); await step(30); await shot('p1-swap'); await step(40); await shot('p2-door'); await step(80); await shot('p3-driving'); await step(200); await shot('p4-parked');
