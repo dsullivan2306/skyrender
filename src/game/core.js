@@ -18,6 +18,7 @@ import { actx, rumbleFilter, rumbleGain, sfx, soundOn } from '../audio/audio.js'
 import { ENV, S, airborne, box, c01, clamp01, ease, flyer, lerp, lerpJ, linked, rig, say, settled, sm, targetMode, wrap } from './state.js';
 import { buildPuffs, emitPuff, runPuffs, stackTop } from './puffs.js';
 import { runTractor } from './tractor.js';
+import { runTrain } from './train.js';
 
 // The truck world (truck/truck.js) and the plane cabin (cabin/cabin.js) are built after this file runs,
 // in the same order as before the split. The main loop still needs some of their pieces, so main.js
@@ -480,12 +481,7 @@ function frame() {
   S.alt = S.plan.to === 3 && (settled() || S.pending !== null) ? altitude(S.launchT) : 0;
   const sp = clamp01((S.alt - 150) / 450);             // 0 = sky, 1 = space
 
-  // Train: steam at the platform, then pulls out of the station
-  if (S.plan.to === 2 && live) S.trainT += sdt;
-  const wantSpeed = S.plan.to === 2 && live && S.trainT > 2.5 && !S.on.stop ? 8 : 0;
-  S.trainSpeed += (wantSpeed - S.trainSpeed) * Math.min(1, dt * (wantSpeed > S.trainSpeed ? 0.35 : 1.6));
-  if (S.trainSpeed < 0.01) S.trainSpeed = 0;
-  S.stationTravel += S.trainSpeed * sdt;
+  runTrain(dt, sdt, live);
   S.crank += (S.trainSpeed + S.truckSpeed + S.tractorSpeed * 0.6 + (S.parkMoving && S.plan.to !== 1 && S.plan.to !== 3 ? H_SPEED * (S.parkState === 3 ? -1 : 1) : 0)) / 0.4 * sdt;      // the same big wheels drive the train and the truck
   for (const w of rig.wheels) w.rotation.x += S.trainSpeed / 0.22 * sdt;
   for (const d of rig.drivers) d.w.rotation.x = S.crank + d.phase;
