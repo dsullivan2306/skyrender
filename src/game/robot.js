@@ -4,15 +4,18 @@ import { S, lerpJ, rig } from './state.js';
 
 // The robot, every frame, on top of its pose: waving, GIANT and tiny sizes, and marching in place.
 // k(id) is how far each toggle has eased in (0 to 1), from applyToggles in game/core.js.
+let wavePh = 0;
 function runRobot(dt, k) {
-  const w = k('wave');
-  if (w > 0) {                                        // right arm swings up and waves
-    rig.named.uaR.rotation.y -= 2.3 * w;
-    rig.named.faR.rotation.x += (0.6 + Math.sin(S.clockT * 9) * 0.45) * w;
-  }
-  // Size: GIANT grows and slides out extra detail; tiny shrinks and packs parts away
   const kb = k('big'), ks = k('small'), N = rig.named;
   const scale = 1 + 1.3 * kb - 0.58 * ks;
+  const pace = 1 / Math.sqrt(scale);                 // long limbs swing slower, like a long pendulum: GIANT is slow, tiny is quick
+  const w = k('wave');
+  if (w > 0) {                                        // right arm swings up and waves; the forearm follows a moment later
+    wavePh += dt * 9 * pace;
+    rig.named.uaR.rotation.y -= 2.3 * w;
+    rig.named.faR.rotation.x += (0.6 + Math.sin(wavePh) * 0.45) * w * w;
+  } else wavePh = 0;
+  // Size: GIANT grows and slides out extra detail; tiny shrinks and packs parts away
   rig.bot.scale.setScalar(scale);
   for (const b of rig.sizeBits.big) b.g.position.lerpVectors(b.from, b.to, kb);
   for (const w of N.wings) { w.j.rotation.z -= w.s * 0.6 * kb; w.j.rotation.y += w.s * 1.05 * ks; }   // battle wings spread wide / fold down like a cape
@@ -25,7 +28,7 @@ function runRobot(dt, k) {
   if (S.parkMoving && S.plan.to === 1) S.blend.march = 1;
   const mk = k('march');
   if (mk > 0) {
-    S.marchPh += dt * 4.4;
+    S.marchPh += dt * (S.parkMoving && S.plan.to === 1 ? 6.4 : 4.4) * pace;   // walking home, steps keep up with the ground
     for (const [i, L] of rig.named.legs.entries()) {
       const wave = Math.sin(S.marchPh + i * Math.PI), lift = Math.max(0, wave) * 0.75 * mk;
       L.thigh.rotation.x -= lift; L.knee.rotation.x += lift;

@@ -157,7 +157,7 @@ function buildRig(THREE, tex) {
       stow: spec.stow ? full(spec.stow) : full(base),
       open: spec.open ? full(spec.open) : null,
       kind: spec.kind || 'body', ord: spec.ord ?? 5, pulse: spec.pulse || null,
-      say: spec.say || {}, stowSay: spec.stowSay || null
+      say: spec.say || {}, stowSay: spec.stowSay || null, lock: !!spec.lock, arc: spec.arc || 0
     };
     const p0 = g.userData.poses[0];
     g.position.set(...p0.P); g.rotation.set(...p0.R); g.scale.set(...p0.S);
@@ -520,7 +520,7 @@ function buildRig(THREE, tex) {
         deco: (g, i, up, h, L) => { if (i === 0) g.add(decal(tex && tex.emblem, 0.26, 0.26, [s * 0.03, h / 2, -0.5], [s, 0, 0], [0, 1, 0])); } });
     }
     // The farmer: rides folded up in the cabin floor, then sits up in the tractor seat
-    const farmer = J(root, [0, -0.15, 0.55], { kind: 'acc', ord: 6, tractor: { p: [0, 0.82, -0.95] }, plane: { S: [0.4, 0.4, 0.4] }, tractor_S: 1,
+    const farmer = J(root, [0, -0.15, 0.55], { kind: 'acc', ord: 6, arc: 0.7, tractor: { p: [0, 0.82, -0.95] }, plane: { S: [0.4, 0.4, 0.4] }, tractor_S: 1,
       say: { tractor: 'The farmer climbs up into the driver seat' } });
     farmer.userData.poses[MODES.indexOf('tractor')].S = [1, 1, 1];
     const fm = passenger(0xb3312b, 0xe0b08a, 0x6b4a2a, 0x2f4f86); fm.scale.setScalar(2.1); farmer.add(fm);
@@ -629,7 +629,7 @@ function buildRig(THREE, tex) {
     for (const z of [-0.2, -0.05, 0.1]) fShell.add(box(0.012, 0.18, 0.05, M.dark, -s * 0.012, 0.15, z));
     fa.add(fShell);
 
-    const fist = J(fa, [s * 0.19, 0.62, 0.6], {
+    const fist = J(fa, [s * 0.19, 0.62, 0.6], { lock: true,
       kind: 'acc', ord: 7, robot: { p: [0, 0, 0.55], r: [0, 0, s * H] }, truck: { p: [0, -0.75, 0.45] },
       say: { robot: s > 0 ? 'Fists slide out and twist into place' : null, truck: s > 0 ? 'Robot fists slide out front as the bumper' : null }, stowSay: s > 0 ? 'Fists pull back in' : null
     });
@@ -641,7 +641,7 @@ function buildRig(THREE, tex) {
     railTruck(fa, s, [s * 0.36, 0.55, 0.35], s > 0 ? 'Little front wheels drop down' : null);
 
     // Cowcatcher half: hidden in the forearm, slides down and forward; the two halves meet in a V
-    const cc = J(fa, [0, 0.55, 0.45], {
+    const cc = J(fa, [0, 0.55, 0.45], { lock: true,
       kind: 'acc', ord: 3, train: { p: [0, -0.8, 0.65], r: [0, s * 0.5, 0] }, truck: { p: [0, 0.2, 0.52] },
       say: { train: s > 0 ? 'Cowcatcher slides out under the nose' : null, truck: s > 0 ? 'Cowcatcher halves line up flat as the grille' : null }, stowSay: s > 0 ? 'Cowcatcher tucks away' : null
     });
@@ -651,7 +651,7 @@ function buildRig(THREE, tex) {
     // Truck front wheel, fender and chrome grille half
 
     // Smokestack half: the two halves rise out of the forearms and meet as one round stack
-    const st = J(fa, [0, 0.55, 0.6], {
+    const st = J(fa, [0, 0.55, 0.6], { lock: true,
       kind: 'acc', ord: 2, train: { p: [0, 0.72, 0] }, tractor: { p: [0, 0.72, 0] },
       say: { train: s > 0 ? 'Smokestack halves rise up and lock together' : null, tractor: s > 0 ? 'Smokestack halves rise up through the hood' : null }, stowSay: s > 0 ? 'Smokestack halves sink back in' : null
     });
@@ -707,10 +707,10 @@ function buildRig(THREE, tex) {
 
     // Robot feet: a heel block and a toe block ride inside each shin and slide out
     // under the ankle, standing level on the stabilizer soles.
-    const heel = J(knee, [s * 0.27, 0, -0.35], { kind: 'acc', ord: 2.6, robot: { p: [-s * 0.05, 0.2154, -2.3841], r: [1.2708, 0, 0] },
+    const heel = J(knee, [s * 0.27, 0, -0.35], { lock: true, kind: 'acc', ord: 2.6, robot: { p: [-s * 0.05, 0.2154, -2.3841], r: [1.2708, 0, 0] },
       say: { robot: s > 0 ? 'Heel blocks slide down out of the shins' : null }, stowSay: s > 0 ? 'Feet slide back up into the shins' : null });
     heel.add(box(0.46, 0.26, 0.45, M.gun, 0, -0.01, 0), box(0.47, 0.08, 0.04, M.dark, 0, 0, -0.22), box(0.04, 0.1, 0.3, M.livery, s * 0.22, 0.02, 0));
-    const toeB = J(knee, [s * 0.27, 0, -1.0], { kind: 'acc', ord: 2.5, robot: { p: [-s * 0.05, -0.2861, -1.579], r: [1.2708, 0, 0] },
+    const toeB = J(knee, [s * 0.27, 0, -1.0], { lock: true, kind: 'acc', ord: 2.5, robot: { p: [-s * 0.05, -0.2861, -1.579], r: [1.2708, 0, 0] },
       say: { robot: s > 0 ? 'Toe blocks slide out and lock in front' : null } });
     toeB.add(box(0.48, 0.28, 0.55, M.gun));
     for (const x of [-0.08, 0.08]) toeB.add(box(0.025, 0.02, 0.3, M.dark, x, 0.145, 0.12), box(0.025, 0.2, 0.02, M.dark, x, 0.03, 0.28));
@@ -859,15 +859,15 @@ function planMorph(rig, to, fromMode) {
     const cur = from[i], tgt = u.poses[to];
     if (eq(cur, tgt)) return;
     if (u.kind === 'acc') {
-      if (!eq(cur, u.stow)) A.push({ i, a: cur, b: u.stow, ord: u.ord, label: u.stowSay });
-      if (!eq(u.stow, tgt)) C.push({ i, a: u.stow, b: tgt, ord: u.ord, label: u.say[target] });
-    } else B.push({ i, a: cur, b: tgt, ord: u.ord, label: u.say[target] });
+      if (!eq(cur, u.stow)) A.push({ i, a: cur, b: u.stow, ord: u.ord, label: u.stowSay, w: 'light', arc: u.arc, scale: 'last' });
+      if (!eq(u.stow, tgt)) C.push({ i, a: u.stow, b: tgt, ord: u.ord, label: u.say[target], w: 'light', lock: u.lock, arc: u.arc, scale: u.arc ? 'first' : null });
+    } else B.push({ i, a: cur, b: tgt, ord: u.ord, label: u.say[target], w: 'heavy', lock: u.lock });
   });
   // Parts sharing an `ord` move together; groups follow one another with overlap.
   const stagger = (list, t0, desc, per) => {
     if (!list.length) return t0;
     const ords = [...new Set(list.map(s => s.ord))].sort((x, y) => desc ? y - x : x - y);
-    const G = ords.length, len = 0.8 + Math.min(per * G, 6.5);
+    const G = ords.length, len = (0.8 + Math.min(per * G, 6.5)) * 0.88;   // a touch quicker, to pay for the holds between phases
     const d = Math.min(1, Math.max(0.3, 1.8 / G));
     for (const s of list) {
       const k = ords.indexOf(s.ord);
@@ -878,11 +878,13 @@ function planMorph(rig, to, fromMode) {
   };
   // Leaving robot mode undoes the robot unfold in reverse order.
   const reverse = to !== 1 && (fromMode === 1 || fromMode == null);
-  const OV = 0.5;
+  // Short holds between phases: little parts tuck away, a beat, the body changes shape, a beat to see
+  // the new outline, then the details come out.
+  const HOLD_AB = 0.15, HOLD_BC = 0.3;
   const endA = stagger(A, 0, true, 0.4);
-  const startB = A.length ? endA - OV : 0;
+  const startB = A.length ? endA + HOLD_AB : 0;
   const endB = stagger(B, startB, reverse, 0.6);
-  const startC = B.length ? endB - OV : Math.max(0, startB);
+  const startC = B.length ? endB + HOLD_BC : Math.max(0, startB);
   const endC = stagger(C, startC, false, 0.4);
   const segs = rig.joints.map(() => []);
   for (const s of [...A, ...B, ...C]) segs[s.i].push(s);
@@ -902,8 +904,11 @@ function planMorph(rig, to, fromMode) {
   });
   for (const list of segs) list.sort((x, y) => x.t0 - y.t0);
   const T = Math.max(endA, endB, endC, ...segs.flat().map(s => s.t1), 0.01);
-  const steps = [...A, ...B, ...C].filter(s => s.label).map(s => ({ at: s.t0, label: s.label })).sort((x, y) => x.at - y.at);
-  return { to, from, segs, steps, T };
+  const allSteps = [...A, ...B, ...C].filter(s => s.label).map(s => ({ at: s.t0, label: s.label })).sort((x, y) => x.at - y.at);
+  // While it plays, a caption stays up at least a second, long enough for a fast reader; scrubbing shows every step.
+  const steps = []; for (const st of allSteps) if (!steps.length || st.at - steps[steps.length - 1].at >= 1.0) steps.push(st);
+  const locks = [...B, ...C].filter(s => s.lock).map(s => s.t1).sort((x, y) => x - y);   // moments parts click into place
+  return { to, from, segs, steps, allSteps, locks, T };
 }
 
 // Pose every joint at time t (seconds) into a plan.
@@ -913,11 +918,14 @@ function poseRig(rig, plan, t, ease) {
     let v = plan.from[i];
     for (const s of plan.segs[i]) {
       if (t <= s.t0) break;
-      const k = ease(c01((t - s.t0) / (s.t1 - s.t0)));
+      const u = c01((t - s.t0) / (s.t1 - s.t0));
+      const k = s.w === 'heavy' ? (u < 0.5 ? 16 * u ** 5 : 1 - (-2 * u + 2) ** 5 / 2) : s.w === 'light' ? 1 - (1 - u) ** 3 : ease(u);
+      // a climbing figure: up and over on an arc (zero at both ends, so poses stay exact), full size while still hidden
+      const ks = s.arc ? (s.scale === 'first' ? c01(k / 0.4) : c01((k - 0.6) / 0.4)) : k;
       v = {
-        P: s.a.P.map((x, n) => x + (s.b.P[n] - x) * k),
+        P: s.a.P.map((x, n) => x + (s.b.P[n] - x) * k + (n === 1 && s.arc ? s.arc * 4 * k * (1 - k) : 0)),
         R: s.a.R.map((x, n) => x + (s.b.R[n] - x) * k),
-        S: s.a.S.map((x, n) => x + (s.b.S[n] - x) * k)
+        S: s.a.S.map((x, n) => x + (s.b.S[n] - x) * ks)
       };
       if (k < 1) break;
     }

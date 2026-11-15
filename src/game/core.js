@@ -84,7 +84,7 @@ function caption() {
   if (S.pending !== null) return S.plan.to === 0 ? 'Coming in to land' : 'Coming back down to the pad';
   if (!settled()) {
     let text = 'Transforming';
-    for (const s of S.plan.steps) if (S.tt >= s.at) text = s.label;
+    for (const s of S.paused ? S.plan.allSteps : S.plan.steps) if (S.tt >= s.at) text = s.label;   // scrubbing shows every step
     return text;
   }
   if (S.plan.to === 0) return planeCaption();
@@ -237,6 +237,7 @@ function applyToggles(dt) {
   runRobot(dt, k);
 }
 
+let lastParkZ = 0;
 const clock = new THREE.Clock();
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
@@ -250,7 +251,10 @@ function frame() {
     const down = S.plan.to === 3 ? S.launchT === 0 : S.planeT <= 0;
     if (down) { const m = S.pending; S.pending = null; S.launchT = 0; S.planeT = 0; if (m !== S.plan.to) startMorph(m); else setButtons(); }
   } else if (!S.paused && S.tt < S.plan.T) {
+    const tt0 = S.tt;
     S.tt = Math.min(S.plan.T, S.tt + sdt);
+    if (S.plan.locks.some(L => tt0 < L && S.tt >= L)) sfx.lock();          // a soft clack as parts lock into place
+    if (S.tt >= S.plan.T && !reduceMotion) S.stompK = Math.max(S.stompK, 0.5);   // and one gentle settle when it's done
   }
   if (settled()) S.mode = S.plan.to;
   if (!S.scrubbing) scrub.value = Math.round(clamp01(S.tt / S.plan.T) * 1000);
@@ -270,8 +274,9 @@ function frame() {
   const { onPad, sp } = startRocket(sdt, live);   // sp: 0 in the sky, 1 in space
 
   runTrain(dt, sdt, live);
-  S.crank += (S.trainSpeed + S.truckSpeed + S.tractorSpeed * 0.6 + (S.parkMoving && S.plan.to !== 1 && S.plan.to !== 3 ? H_SPEED * (S.parkState === 3 ? -1 : 1) : 0)) / 0.4 * sdt;      // the same big wheels drive the train and the truck
-  for (const w of rig.wheels) w.rotation.x += S.trainSpeed / 0.22 * sdt;
+  const parkV = (S.parkZ - lastParkZ) / Math.max(dt, 1e-6); lastParkZ = S.parkZ;   // how fast it's really driving in or out
+  S.crank += (S.trainSpeed + S.truckSpeed + S.tractorSpeed * 0.6 + (S.plan.to !== 1 && S.plan.to !== 3 ? parkV : 0)) / 0.4 * sdt;      // the same big wheels drive the train and the truck
+  for (const w of rig.wheels) w.rotation.x += (S.trainSpeed + S.truckSpeed) / 0.22 * sdt;   // rail wheels under the trailer roll on the road too
   for (const d of rig.drivers) d.w.rotation.x = S.crank + d.phase;
   for (const r of rig.rods) {                         // side rods ride around with the crank pins
     const a = S.crank + r.phase, kk = S.env.track;
@@ -357,7 +362,8 @@ function frame() {
   beam.position.set(0, 1.1, box.max.z - 0.3); beam.target.position.set(0, 0, box.max.z + 9);
 
   const rumble = reduceMotion ? 0 : Math.min(1, S.trainSpeed / 8 + (air < 0.05 ? S.planeSpeed / 28 : 0));
-  const pitch = S.plan.to === 0 ? -0.13 * Math.sin(Math.PI * clamp01((S.planeT - PLANE_LIFT + 0.8) / 6)) : 0;   // nose up at liftoff
+  // a plane climbs because it points up: nose rises at liftoff, holds through the climb, levels off at the clouds
+  const pitch = S.plan.to === 0 ? -0.13 * ease(clamp01((S.planeT - PLANE_LIFT + 0.8) / 1.5)) * (1 - ease(clamp01((air - 0.75) / 0.25))) : 0;
   flyer.position.y = air * (8 + Math.sin(S.clockT * 0.9) * 0.25) + Math.abs(Math.sin(S.clockT * 11)) * 0.012 * rumble;
   flyer.rotation.z = air * Math.sin(S.clockT * 0.45) * 0.05 + Math.sin(S.clockT * 9) * 0.002 * rumble;
   flyer.rotation.x = pitch + air * Math.sin(S.clockT * 0.7) * 0.02;
@@ -424,7 +430,13 @@ function frame() {
   const want = Math.max(1, 0.7 * tallest / Math.tan(camera.fov * Math.PI / 360) / 17, span / 11, 1 + 1.0 * sm(S.homeK)) * (1 - sm(S.viewK)) + 1.7 * sm(S.viewK);
   fitScale += (want - fitScale) * (1 - Math.exp(-dt * 2));
   idle += dt;
-  if (!dragging && idle > 2 && !reduceMotion && S.homeK < 0.01) theta += dt * (0.1 - 0.06 * S.viewK);
+  if (!dragging && idle > 2 && !reduceMotion && S.homeK < 0.01) {
+    if (settled()) theta += dt * (0.1 - 0.06 * S.viewK);
+    else {                                             // while it transforms, face the action: front three-quarter, trailer side for the big rig
+      const want = S.plan.to === 4 ? 2.2 : 0.9, d = ((want - theta) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI;
+      theta += d * Math.min(1, dt * 0.8);
+    }
+  }
   if (S.viewK > 0.01 && !dragging) phi += (0.78 - phi) * Math.min(1, dt * 1.2) * S.viewK;   // look down into the airport
   if (S.homeK > 0.01 && !dragging) {                    // at bedtime, swing around to look at the front door
     const want = Math.PI - 0.55; let d = ((want - theta) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI;

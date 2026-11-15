@@ -13,7 +13,7 @@ function buildPuffs() {
     m.visible = false; scene.add(m); puffs.push({ m, life: 0 });
   }
 }
-let puffClock = 0, puffNext = 0;
+let puffClock = 0, lastBeat = 0;
 const stackTop = new THREE.Vector3();
 const stackTip = new THREE.Vector3(0, 0, 0.5);
 function emitPuff(big, from, color) {
@@ -30,7 +30,13 @@ function runPuffs(sdt) {
   // Steam: gentle puffs at the station, faster chuffs as the train speeds up
   const steamy = S.env.track > 0.99 && S.plan.to === 2;
   puffClock += sdt;
-  if (steamy && puffClock >= puffNext) { emitPuff(S.trainSpeed < 1); if (S.trainSpeed > 0.5) sfx.chuff(Math.min(1, S.trainSpeed / 6)); puffClock = 0; puffNext = S.trainSpeed > 0.5 ? Math.max(0.12, 1.4 / (S.trainSpeed / 0.4) * Math.PI) : 0.9; }
+  // Steam drives the wheels, so the puffs keep the wheels' rhythm: four chuffs and two puffs per turn of
+  // the big wheels once it's rolling; slow, lazy puffs while it waits at the station.
+  const beat4 = Math.floor(S.crank / (Math.PI / 2));
+  if (steamy && S.trainSpeed > 0.5) {
+    if (beat4 !== lastBeat) { sfx.chuff(Math.min(1, S.trainSpeed / 6)); if (beat4 % 2 === 0 && puffClock >= 0.12) { emitPuff(S.trainSpeed < 1); puffClock = 0; } }
+  } else if (steamy && puffClock >= 0.9) { emitPuff(true); puffClock = 0; }
+  lastBeat = beat4;
   // Big rig: black smoke chugs out of the chrome stacks
   if (S.plan.to === 4 && settled() && S.on.smoke && !S.on.wreck && rig.truckBits.stacks) {
     S.smokeClock += sdt;

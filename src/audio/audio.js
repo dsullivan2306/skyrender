@@ -118,19 +118,22 @@ for (const k of Object.keys(sfx)) { const f = sfx[k]; sfx[k] = (...a) => { windo
 // The continuous sounds, set every frame by the main loop: engines, jet whine, wind, birds and crickets.
 // mix: { roar, rumbleHz, engHz, eng, whineHz, whine, wind, birds, crickets } (levels 0 to about 1)
 let nextBird = 3, nextCricket = 2;
+const sent = {};                                  // the last level sent for each continuous sound
 function setMix(m, dt) {
   window.__mix = m;
   if (!actx || !soundOn) return;
   const t = actx.currentTime;
-  rumbleGain.gain.setTargetAtTime(m.roar, t, 0.15); rumbleFilter.frequency.setTargetAtTime(m.rumbleHz, t, 0.2);
-  engOsc.frequency.setTargetAtTime(m.engHz, t, 0.3); engGain.gain.setTargetAtTime(m.eng * 0.06, t, 0.3);
-  whineOsc.frequency.setTargetAtTime(m.whineHz, t, 0.4); whineGain.gain.setTargetAtTime(m.whine * 0.012, t, 0.4);
-  windGain.gain.setTargetAtTime(m.wind * 0.05, t, 0.8); windFilter.frequency.setTargetAtTime(400 + 300 * Math.sin(t * 0.3), t, 1);
+  // only tell the audio system about real changes: sending every level every frame piles up work (and Safari queues it)
+  const set = (k, param, v, tc) => { const old = sent[k]; if (old !== undefined && Math.abs(v - old) <= Math.max(1e-4, Math.abs(old) * 0.02)) return; sent[k] = v; param.setTargetAtTime(v, t, tc); };
+  set('roar', rumbleGain.gain, m.roar, 0.15); set('rumbleHz', rumbleFilter.frequency, m.rumbleHz, 0.2);
+  set('engHz', engOsc.frequency, m.engHz, 0.3); set('eng', engGain.gain, m.eng * 0.06, 0.3);
+  set('whineHz', whineOsc.frequency, m.whineHz, 0.4); set('whine', whineGain.gain, m.whine * 0.012, 0.4);
+  set('wind', windGain.gain, m.wind * 0.05, 0.8); set('windHz', windFilter.frequency, 400 + 300 * Math.sin(t * 0.3), 1);
   nextBird -= dt; nextCricket -= dt;
   if (m.birds > 0 && nextBird <= 0) { nextBird = 4 + arnd() * 8; if (arnd() < m.birds) sfx.bird(); }
   if (m.crickets > 0 && nextCricket <= 0) { nextCricket = 0.8 + arnd() * 2.5; if (arnd() < m.crickets) sfx.cricket(); }
 }
-function silence() { if (!actx) return; for (const g of [rumbleGain, engGain, whineGain, windGain]) g.gain.value = 0; }
+function silence() { if (!actx) return; for (const g of [rumbleGain, engGain, whineGain, windGain]) { g.gain.cancelScheduledValues(0); g.gain.value = 0; } for (const k in sent) delete sent[k]; }
 
 const soundBtn = document.getElementById('sound');
 soundBtn.addEventListener('click', () => {

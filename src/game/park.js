@@ -8,8 +8,8 @@ import { S, airborne, c01, linked, say, settled, sm } from './state.js';
 const parkBtn = document.getElementById('park');
 const dnBtn = document.getElementById('daynight');
 const NAMES = ['Skyrender the jet', 'Skyrender the robot', 'the Skyrender train', 'the Skyrender rocket', 'the big rig', 'Skyfly'];
-const H_SWAP = 1.8, H_DOOR = 1.2, H_SPEED = 3.2;
-const parkDrive = () => S.parkD / H_SPEED;
+const H_SWAP = 1.8, H_DOOR = 1.2, H_SPEED = 3.2, H_WALK = 2.2;   // the robot walks home a little slower, so its feet don't skate
+const parkDrive = () => S.parkD / (S.parkRobot ? H_WALK : H_SPEED);
 function startPark() {
   if (S.plan.to === 0) { S.parkQueued = false; linked.startBoarding(); return; }
   S.parkQueued = false; S.parkState = 1; S.parkT = 0; S.parkRobot = S.plan.to === 1;
