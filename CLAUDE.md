@@ -50,9 +50,13 @@ A transforming toy built for Jasper (Daniel's son). One machine changes between 
 - `home/home.js`: builds `homeSet`, the garage and robot house.
 - `audio/audio.js`: `tone`, `noise`, `play` and the `sfx` object.
 - `game/state.js`: the shared state `S` (`S.plan`, `S.planeT`, `S.on.lights`, `S.parkState`, ...), the machine itself (`rig`, `flyer`), helpers (`ease`, `sm`, `c01`, `wrap`, `lerpJ`), `say`, `settled`, `airborne`, and `linked` (truck and cabin pieces the loop calls). Any module changes the toy by writing to `S`; no setters. It runs right before `core.js`, so the machine is built at the same moment as always.
+- `game/puffs.js`: the shared puff pool: `emitPuff`, train steam, big rig smoke, and floating them away.
+- One module per world, called from the main loop at the same spot as always (untangling is in progress; the rest of the worlds are still in `core.js`):
+  - `game/plane.js`: takeoff and climb (`runPlane`), `planeCaption`, `PLANE_LIFT`, and `runHall` (airport interior: "See inside airport", "Go inside airport").
+  - `game/train.js`: `runTrain`. `game/tractor.js`: `runTractor`, with the farm animals.
+  - Order inside `game/`: `state.js`, then `puffs.js`, then the world modules, then `core.js`. A world module imports only from the ones before it and holds only functions at the top level (anything built at load time would change the build order).
 - `game/core.js`: the toy itself: buttons, captions, the main loop.
   - State, `startMorph` and `go`, captions, mode and season buttons, day and night.
-  - `runHall` (airport interior: "See inside airport", "Go inside airport").
   - `startPark` / `runPark` (garage and robot house; plane mode redirects to boarding instead).
   - `ACTIONS`: per-mode action buttons. `doAction`, `applyToggles` (overlays applied after `poseRig`), `on[id]` / `blend[id]`.
   - Camera drag, steam puffs, Skyrender Jr. (`flyJr`).
