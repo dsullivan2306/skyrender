@@ -1,6 +1,5 @@
 node_modules/
 dist/
 tests/shots/
-tests/baseline/
 tests/compare/
 .DS_Store

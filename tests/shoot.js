@@ -34,14 +34,24 @@ const errs = []; page.on('pageerror', e => errs.push(e.message));
 // serve three.js locally if a page still loads it from the web (the old single file did); block web fonts
 await page.route('**/three.min.js', r => r.fulfill({ body: fs.readFileSync(path.join(root, 'node_modules/three/build/three.min.js')), contentType: 'application/javascript' }));
 await page.route('**fonts.g**', r => r.abort());
+// Everything that could change from run to run is pinned, so the same scenario gives the same pictures every time:
+// the clock is stepped, Math.random follows a fixed seed, timers fire on the stepped clock, and CSS fades are off.
+// This only affects the tests; the game itself stays random and real-time.
 await page.addInitScript(() => {
   let t = 0; performance.now = () => t;
+  let seed = 20261115;
+  Math.random = () => { seed = (seed + 0x6D2B79F5) | 0; let x = Math.imul(seed ^ (seed >>> 15), 1 | seed); x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x; return ((x ^ (x >>> 14)) >>> 0) / 4294967296; };
+  const timers = []; let tid = 0;
+  window.setTimeout = (f, ms, ...a) => { timers.push({ id: ++tid, due: t + (+ms || 0), f, a }); return tid; };
+  window.clearTimeout = id => { const i = timers.findIndex(x => x.id === id); if (i >= 0) timers.splice(i, 1); };
+  const runTimers = () => { for (;;) { timers.sort((p, q) => p.due - q.due || p.id - q.id); if (!timers.length || timers[0].due > t) return; const x = timers.shift(); x.f(...x.a); } };
+  document.addEventListener('DOMContentLoaded', () => { const s = document.createElement('style'); s.textContent = '*, *::before, *::after { transition: none !important; animation: none !important; }'; document.head.appendChild(s); });
   for (const C of [WebGLRenderingContext, WebGL2RenderingContext]) for (const k of ['drawArrays', 'drawElements', 'drawArraysInstanced', 'drawElementsInstanced']) {
     const orig = C.prototype[k]; if (!orig) continue;
     C.prototype[k] = function (...a) { if (window.__fast) return; return orig.apply(this, a); };
   }
   window.__raf = null; window.requestAnimationFrame = f => { window.__raf = f; return 1; };
-  window.__step = n => { window.__fast = true; for (let i = 0; i < n; i++) { if (i === n - 1) window.__fast = false; t += 50; const f = window.__raf; window.__raf = null; if (f) f(t); } window.__fast = false; };
+  window.__step = n => { window.__fast = true; for (let i = 0; i < n; i++) { if (i === n - 1) window.__fast = false; t += 50; runTimers(); const f = window.__raf; window.__raf = null; if (f) f(t); } window.__fast = false; };
 });
 await page.goto(url);
 await page.waitForFunction(() => window.__raf);

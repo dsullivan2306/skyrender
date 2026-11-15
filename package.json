@@ -12,15 +12,18 @@
     "test:park": "node tests/shoot.js tests/scenarios/park.js",
     "test:airport": "node tests/shoot.js tests/scenarios/airport.js",
     "test:cabin": "node tests/shoot.js tests/scenarios/plane-cabin.js && node tests/shoot.js tests/scenarios/reboard.js && node tests/shoot.js tests/scenarios/cancel-boarding.js",
-    "test": "npm run build && npm run test:rig && npm run test:modes && npm run test:park && npm run test:airport && npm run test:cabin && npm run test:install",
+    "test": "npm run build && npm run test:rig && npm run test:modes && npm run test:park && npm run test:airport && npm run test:cabin && npm run test:install && npm run test:shots",
     "icons": "node scripts/make-icons.js",
-    "test:install": "node tests/shoot.js tests/scenarios/install.js"
+    "test:install": "node tests/shoot.js tests/scenarios/install.js",
+    "test:shots": "node tests/compare.js",
+    "baseline": "node tests/compare.js --approve"
   },
   "dependencies": {
     "three": "0.128.0"
   },
   "devDependencies": {
     "playwright": "^1.47.0",
+    "pngjs": "^7.0.0",
     "vite": "^8.3.8"
   }
 }
