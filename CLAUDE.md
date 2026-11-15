@@ -71,7 +71,7 @@ Adding a feature: put new code in the module for that world. If the main loop ha
 ## Planned next steps (in order)
 
 1. Done: split `skyrender.html` into modules with Vite, without changing behavior (screenshots matched the Checkpoint 0 baseline apart from the random parts).
-2. Free hosting at a fixed link: GitHub Pages through a GitHub Actions workflow that builds and deploys on every push to `main`. Done so far: home screen install (web app manifest and the crest icon). Waiting on Daniel: a GitHub account and sign-in, whether the code may be public, and whether "Jasper" stays in place names. Ask before creating the repository or pushing anything.
+2. Free hosting at a fixed link: GitHub Pages through a GitHub Actions workflow that builds and deploys on every push to `main`. Done so far: home screen install (web app manifest and the crest icon) and the workflow `.github/workflows/deploy.yml` (rig test, build, publish `dist/`). Waiting on Daniel: a GitHub account and sign-in, whether the code may be public, and whether "Jasper" stays in place names. Ask before creating the repository or pushing anything.
 3. Back to building Jasper's ideas, one commit each.
 
 ## Known limitations (already explained to Daniel)
