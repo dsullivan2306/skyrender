@@ -17,6 +17,16 @@ export default async ({ page, step, shot, click, act }) => {
   c = await cap(); console.log('astronaut caption:', c);
   must(await page.evaluate(() => window.__sfx.includes('quindar')), 'radio beep before the astronauts speak', {});
   await shot('moon-4');
+  // what the astronauts see: the telescope window, and the camera astronaut's picture of Skyrender
+  const until = async (ok, why, max = 600) => { for (let i = 0; i < max; i += 5) { const v = await moon(); if (ok(v)) return v; await step(5); } throw new Error(why + ' ' + JSON.stringify(await moon())); };
+  m = await until(v => v.scope > 0.9, 'the telescope window opens'); console.log('telescope on:', m.looking);
+  m = await until(v => v.photoUp, 'the astronaut takes a picture'); await step(10);
+  await shot('moon-5');
+  m = await until(v => v.looking === 'planet', 'the telescope turns to the ringed planet'); await step(70); await shot('moon-6');
+  m = await until(v => v.looking === 'earth', 'the telescope turns to Earth'); await step(70); await shot('moon-7');
+  await act('Meteors'); await step(4); m = await moon(); must(m.looking === 'meteors', 'the telescope swings over to watch the meteors hit', m);
+  await step(70); await shot('moon-8');
+  m = await until(v => v.craters === 12 && v.looking !== 'meteors', 'six more craters, then back to studying space');
   await act('Fly to space'); await step(60); m = await moon(); must(m.astroK < 0.5, 'astronauts head back in first', m);
   await step(400); c = await cap(); must(c.startsWith('Cruising'), 'back down to the clouds', c);
   m = await moon(); must(m.astroK === 0, 'everyone is back inside', m);

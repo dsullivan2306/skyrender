@@ -6,8 +6,8 @@
 // safety lines to study it. Built last, after everything else, and reached by the main loop through `linked`.
 // Nobody is ever hurt: the meteors fly far from the plane and the astronauts are always tied on.
 import * as THREE from 'three';
-import { camera, scene } from '../world/setup.js';
-import { moonMat } from '../scenery/space.js';
+import { camera, renderer, scene } from '../world/setup.js';
+import { earth, giant, moonMat } from '../scenery/space.js';
 import { makePerson } from '../people/people.js';
 import { sfx } from '../audio/audio.js';
 import { S, c01, ease, flyer, rig, say, sm } from '../game/state.js';
@@ -17,38 +17,73 @@ let ms = 0x51ed;
 const mrnd = () => { ms = (ms + 0x6D2B79F5) | 0; let x = Math.imul(ms ^ (ms >>> 15), 1 | ms); x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x; return ((x ^ (x >>> 14)) >>> 0) / 4294967296; };
 
 // ---------- the huge Moon ----------
-// Grey highlands, dark "seas" of old lava, and craters everywhere: the Moon has no air or weather to wear them away.
-const W = 1024, H = 512;
-const moonCanvas = document.createElement('canvas'); moonCanvas.width = W; moonCanvas.height = H;
-const mg = moonCanvas.getContext('2d');
+// Grey highlands, dark smooth "seas" of old lava (with fewer craters, because they're younger), and craters
+// everywhere: the Moon has no air or weather to wear them away. Each crater is a bowl with a raised rim, and the big
+// ones have a mountain in the middle, where the ground bounced back up after the hit. Two pictures paint it: the
+// colors (fresh craters are bright, because new dust hasn't been darkened by sunlight yet) and the heights, which
+// the sunlight shades. Drawn in a 1024 x 512 plan at twice that sharpness.
+const W = 1024, H = 512, CS = 2;
+const moonCanvas = document.createElement('canvas'); moonCanvas.width = W * CS; moonCanvas.height = H * CS;
+const mg = moonCanvas.getContext('2d'); mg.scale(CS, CS);
+const hCanvas = document.createElement('canvas'); hCanvas.width = W * CS; hCanvas.height = H * CS;
+const hg = hCanvas.getContext('2d'); hg.scale(CS, CS);
+const blob = (g, x, y, rx, ry, rot, stops) => {      // a soft-edged oval
+  g.save(); g.translate(x, y); g.rotate(rot); g.scale(rx, ry);
+  const r = g.createRadialGradient(0, 0, 0, 0, 0, 1); for (const [o, c] of stops) r.addColorStop(o, c);
+  g.fillStyle = r; g.beginPath(); g.arc(0, 0, 1, 0, Math.PI * 2); g.fill(); g.restore();
+};
 function crater(x, y, r, fresh) {
   for (const dx of [-W, 0, W]) {                   // draw across the seam so craters wrap around the globe
     const cx = x + dx;
-    if (cx + r * 3 < 0 || cx - r * 3 > W) continue;
-    if (fresh) {                                   // a new crater throws out bright rays of dust
-      mg.strokeStyle = 'rgba(232,230,222,0.45)'; mg.lineWidth = Math.max(1, r * 0.18);
-      for (let k = 0; k < 10; k++) { const a = mrnd() * Math.PI * 2, L = r * (1.8 + mrnd() * 2.2); mg.beginPath(); mg.moveTo(cx + Math.cos(a) * r, y + Math.sin(a) * r * 0.9); mg.lineTo(cx + Math.cos(a) * L, y + Math.sin(a) * L * 0.9); mg.stroke(); }
+    if (cx + r * 4 < 0 || cx - r * 4 > W) continue;
+    // heights: a bowl below the ground, a raised rim, and a central peak in the big ones
+    blob(hg, cx, y, r * 1.55, r * 1.55, 0, [[0, 'rgba(50,50,50,0.9)'], [0.32, 'rgba(62,62,62,0.88)'], [0.6, 'rgba(228,228,228,0.92)'], [0.8, 'rgba(165,165,165,0.45)'], [1, 'rgba(128,128,128,0)']]);
+    if (r > 9) blob(hg, cx, y, r * 0.22, r * 0.22, 0, [[0, 'rgba(200,200,200,0.85)'], [1, 'rgba(70,70,70,0)']]);
+    // colors
+    if (fresh) {
+      blob(mg, cx, y, r * 3.2, r * 3.0, 0, [[0, 'rgba(236,234,226,0.55)'], [0.4, 'rgba(230,228,220,0.25)'], [1, 'rgba(230,228,220,0)']]);   // bright thrown-out dust
+      for (let k = 0; k < 14; k++) {             // rays: long thin streaks of dust, fading with distance
+        const a = mrnd() * Math.PI * 2, L = r * (3 + mrnd() * 5), wd = r * (0.12 + mrnd() * 0.16);
+        const ex = cx + Math.cos(a) * L, ey = y + Math.sin(a) * L * 0.9, nx = -Math.sin(a) * wd, ny = Math.cos(a) * wd;
+        const gr = mg.createLinearGradient(cx, y, ex, ey); gr.addColorStop(0, 'rgba(238,236,228,0.5)'); gr.addColorStop(1, 'rgba(238,236,228,0)');
+        mg.fillStyle = gr; mg.beginPath(); mg.moveTo(cx + nx, y + ny); mg.lineTo(ex, ey); mg.lineTo(cx - nx, y - ny); mg.fill();
+      }
+      blob(mg, cx, y, r * 1.05, r * 1.05, 0, [[0, 'rgba(150,148,140,1)'], [0.7, 'rgba(176,174,166,1)'], [0.9, 'rgba(232,230,222,1)'], [1, 'rgba(232,230,222,0)']]);
+    } else {
+      blob(mg, cx, y, r * 1.5, r * 1.5, 0, [[0, 'rgba(60,60,56,0.16)'], [0.55, 'rgba(60,60,56,0.08)'], [0.66, 'rgba(225,223,215,0.16)'], [1, 'rgba(225,223,215,0)']]);
     }
-    mg.fillStyle = fresh ? '#5a5953' : 'rgba(70,70,66,0.55)'; mg.beginPath(); mg.arc(cx, y, r, 0, Math.PI * 2); mg.fill();      // the floor, in shadow
-    mg.strokeStyle = fresh ? '#e4e2da' : 'rgba(215,213,205,0.7)'; mg.lineWidth = Math.max(1, r * 0.22);                     // the sunlit rim
-    mg.beginPath(); mg.arc(cx, y, r, Math.PI * 0.9, Math.PI * 1.9); mg.stroke();
-    mg.strokeStyle = 'rgba(40,40,38,0.5)'; mg.beginPath(); mg.arc(cx, y, r, Math.PI * 1.95, Math.PI * 0.85); mg.stroke();
   }
 }
-mg.fillStyle = '#a3a29b'; mg.fillRect(0, 0, W, H);
-for (let i = 0; i < 9; i++) {                      // the dark seas (maria)
-  const cx = mrnd() * W, cy = 120 + mrnd() * 270, n = 5 + mrnd() * 6;
-  for (let k = 0; k < n; k++) { mg.fillStyle = 'rgba(92,92,88,0.5)'; mg.beginPath(); mg.ellipse(cx + (mrnd() - 0.5) * 140, cy + (mrnd() - 0.5) * 90, 30 + mrnd() * 70, 20 + mrnd() * 45, mrnd() * 3, 0, Math.PI * 2); mg.fill(); }
+mg.fillStyle = '#a5a49d'; mg.fillRect(0, 0, W, H);
+hg.fillStyle = '#808080'; hg.fillRect(0, 0, W, H);
+for (let i = 0; i < 9000; i++) {                   // fine dust and pebbles everywhere
+  const v = 120 + mrnd() * 70 | 0; mg.fillStyle = `rgba(${v},${v},${v - 6},0.18)`; mg.fillRect(mrnd() * W, mrnd() * H, 0.6 + mrnd(), 0.6 + mrnd());
 }
-for (let i = 0; i < 420; i++) crater(mrnd() * W, 20 + mrnd() * (H - 40), 2 + Math.pow(mrnd(), 3) * 26, false);
-for (let i = 0; i < 3; i++) crater(mrnd() * W, 80 + mrnd() * 350, 9 + mrnd() * 6, true);     // a few young ray craters
+const seas = [];
+for (let i = 0; i < 10; i++) {                     // the dark seas (maria), most of them on the side Skyrender sees
+  const cx = i < 5 ? 110 + mrnd() * 330 : mrnd() * W, cy = i < 5 ? 320 + mrnd() * 110 : 120 + mrnd() * 270, n = 5 + mrnd() * 6;
+  for (let k = 0; k < n; k++) {
+    const s = { x: cx + (mrnd() - 0.5) * 140, y: cy + (mrnd() - 0.5) * 90, rx: 30 + mrnd() * 70, ry: 20 + mrnd() * 45, rot: mrnd() * 3 };
+    seas.push(s);
+    for (const dx of [-W, 0, W]) blob(mg, s.x + dx, s.y, s.rx * 1.3, s.ry * 1.3, s.rot, [[0, 'rgba(78,78,75,0.66)'], [0.65, 'rgba(78,78,75,0.52)'], [1, 'rgba(78,78,75,0)']]);
+  }
+}
+const inSea = (x, y) => seas.some(s => { const c = Math.cos(-s.rot), n = Math.sin(-s.rot), dx = x - s.x, dy = y - s.y, u = (dx * c - dy * n) / s.rx, v = (dx * n + dy * c) / s.ry; return u * u + v * v < 1; });
+for (let i = 0; i < 520; i++) {
+  const x = mrnd() * W, y = 20 + mrnd() * (H - 40), r = 1.5 + Math.pow(mrnd(), 3) * 28;
+  if (inSea(x, y) && mrnd() < 0.7) continue;      // the seas are smoother
+  crater(x, y, r, false);
+}
+for (let i = 0; i < 3; i++) crater(mrnd() * W, 80 + mrnd() * 350, 7 + mrnd() * 5, true);     // a few young ray craters
 const moonTex = new THREE.CanvasTexture(moonCanvas); moonTex.anisotropy = 4;
+const moonBump = new THREE.CanvasTexture(hCanvas);
 const MOON_R = 42, MOON_POS = new THREE.Vector3(-58, 26, -96);
-const bigMoonMat = new THREE.MeshStandardMaterial({ map: moonTex, bumpMap: moonTex, bumpScale: 2.2, roughness: 1, transparent: true, opacity: 0, fog: false });
+const bigMoonMat = new THREE.MeshStandardMaterial({ map: moonTex, bumpMap: moonBump, bumpScale: 2.4, roughness: 1, transparent: true, opacity: 0, fog: false });
 const bigMoon = new THREE.Mesh(new THREE.SphereGeometry(MOON_R, 96, 64), bigMoonMat);
 bigMoon.position.copy(MOON_POS); bigMoon.rotation.y = 0.6;
 const trip = new THREE.Group(); trip.visible = false; trip.add(bigMoon); scene.add(trip);
 moonMat.visible = false;                           // the small far-off Moon gives way to the huge one
+let moonDirty = false, moonWait = 0;               // new craters go to the screen at most 4 times a second
 
 // ---------- meteors ----------
 // Space rocks are called meteoroids; they only glow as "meteors" when they rush through air. Out here they're dark,
@@ -109,6 +144,7 @@ function launchMeteors() {
     r.spin.set((mrnd() - 0.5) * 4, (mrnd() - 0.5) * 4, (mrnd() - 0.5) * 4);
     r.m.scale.setScalar(2.6 + mrnd() * 2.6); r.m.rotation.set(mrnd() * 6, mrnd() * 6, mrnd() * 6);
   });
+  watchHits = 6;                                   // if the astronauts are out, the telescope swings over to watch
 }
 function impact(at, size) {
   const f = flashes.find(x => x.t >= 1) || flashes[0];
@@ -124,7 +160,7 @@ function impact(at, size) {
   // paint the new crater where it hit (sphere texture: u around the equator, v from the north pole down)
   _v.copy(at); bigMoon.worldToLocal(_v).normalize();
   const u = ((Math.atan2(_v.z, -_v.x) / (Math.PI * 2)) % 1 + 1) % 1, vv = Math.acos(THREE.MathUtils.clamp(_v.y, -1, 1)) / Math.PI;
-  crater(u * W, vv * H, 6 + size * 2.5, true); moonTex.needsUpdate = true;
+  crater(u * W, vv * H, 5 + size * 2, true); moonDirty = true; lastHit.copy(at); hasHit = true;
   newCraters++;
   const lines = ['Flash! Telescopes on Earth really see flashes like this when rocks hit the Moon',
     'A brand new crater. That\'s how the Moon got all its craters', 'No air, so no dust cloud: the dust flies out in perfect arcs', 'No boom: space has no air to carry sound'];
@@ -207,7 +243,7 @@ for (const c of crew) {
     flash = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0 });
     const f = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.035, 0.02), flash); f.position.set(0.05, 1.17, 0.43); c.a.userData.body.add(f);
   }
-  c.a.userData.body.add(tool); c.flash = flash;
+  c.a.userData.body.add(tool); c.flash = flash; c.tool3d = tool;
   c.a.scale.setScalar(ASTRO_SCALE); c.a.visible = c.tether.visible = false; flyer.add(c.a); flyer.add(c.tether);
 }
 const FACTS = ['Astronauts study the Moon\'s craters through a telescope', 'Safety lines keep the astronauts tied to Skyrender',
@@ -269,6 +305,7 @@ function placeTether(c, from, to, t) {
 // Every frame (sp: 0 in the sky, 1 in space)
 function runMoonTrip(dt, sp) {
   lastSp = sp; clock += dt;
+  moonWait -= dt; if (moonDirty && moonWait <= 0) { moonTex.needsUpdate = moonBump.needsUpdate = true; moonDirty = false; moonWait = 0.25; }
   trip.visible = sp > 0.001;
   bigMoonMat.opacity = sp;
   // meteors: speeding up as the Moon pulls them in, shedding grains
@@ -315,7 +352,7 @@ function runMoonTrip(dt, sp) {
       _a.y += Math.sin(clock * 0.6 + c.ph) * 0.12 * k; _a.x += Math.cos(clock * 0.45 + c.ph) * 0.1 * k;
       a.position.copy(_a);
       // face where they're going while drifting out, then turn to study the Moon
-      look.copy(c.tool === 'camera' ? camL : moonL).lerp(camL, c.tool === 'camera' ? 0 : 0.5);
+      if (c.tool === 'camera') look.copy(camL); else { look.copy(aim); flyer.worldToLocal(look); look.lerp(camL, 0.3); }
       _m4.lookAt(a.position, k < 0.85 ? c.station : look, _up); a.quaternion.setFromRotationMatrix(_m4); a.rotateY(Math.PI);
       a.rotateZ(Math.sin(clock * 0.4 + c.ph) * 0.08 + (1 - k) * 0.6); a.rotateX(-0.2 + Math.sin(clock * 0.35 + c.ph) * 0.06);
       pose(c, k, clock);
@@ -326,8 +363,16 @@ function runMoonTrip(dt, sp) {
       hand.set(0, 1.0, -0.45).applyQuaternion(a.quaternion).multiplyScalar(ASTRO_SCALE).add(a.position);
       placeTether(c, door, hand, clock);
     }
-    if (want && S.astroK > 0.9) { factT -= dt; if (factT <= 0) { factT = 6; say(FACTS[fact++ % FACTS.length], 4); sfx.quindar(); } }
+    if (want && S.astroK > 0.9) {
+      factT -= dt;
+      if (factT <= 0) {
+        factT = 6; tick++;
+        if (tick % 2 && watchHits <= 0) { if (tick > 1) look_i = (look_i + 1) % LOOKS.length; say(LOOKS[look_i].line(), 4.4); } else say(FACTS[fact++ % FACTS.length], 4);
+        sfx.quindar();
+      }
+    }
   } else { for (const c of crew) c.a.visible = c.tether.visible = false; factT = 2; }
+  runViews(dt, want);
   for (let i = 0; i < MAXP; i++) {
     if (pLife[i] <= 0) { pCol[i * 3] = pCol[i * 3 + 1] = pCol[i * 3 + 2] = 0; continue; }
     pLife[i] -= dt; const f = Math.max(0, pLife[i] / 0.6) * 0.9;
@@ -336,7 +381,99 @@ function runMoonTrip(dt, sp) {
   }
   puffGeo.attributes.position.needsUpdate = true; puffGeo.attributes.color.needsUpdate = true;
   jetPuffs.visible = show;
-  window.__moon = { craters: newCraters, astroK: S.astroK, meteorsFlying: rocks.filter(r => r.live).length };
+  window.__moon = { craters: newCraters, astroK: S.astroK, meteorsFlying: rocks.filter(r => r.live).length, scope: scopeK, looking: watchHits > 0 ? 'meteors' : LOOKS[look_i].name, photos, photoUp: photoT >= 0 && photoT < PHOTO_HOLD };
 }
 
-export { moonAction, runMoonTrip };
+// ---------- what the astronauts see ----------
+// While the astronauts are out, a round window shows the view through the telescope: the Moon up close (Jasper's
+// newest crater, if he made one, or the rocks hitting it, live), a ringed planet, and Earth's edge with its thin
+// blue air. A telescope makes faraway things look big by gathering their light into a narrow view. Every so often
+// the other astronaut's camera flashes and their picture of the commander at work drops in, then floats away.
+const LOOKS = [
+  { name: 'moon', fov: 13, line: () => hasHit ? 'Through the telescope: your new crater, up close. See the mountain in the middle?' : 'Through the telescope: Moon craters up close. Big ones have a mountain in the middle' },
+  { name: 'planet', fov: 28, line: () => 'Through the telescope: the ringed planet. Its rings are billions of chunks of ice and rock' },
+  { name: 'earth', fov: 30, line: () => 'Through the telescope: home! That thin blue line is all the air wrapped around Earth' },
+];
+let look_i = 0, tick = 0, watchHits = 0, hasHit = false, scopeK = 0, photoT = -1, photoCool = 4, photos = 0, lastFlash = false;
+const lastHit = new THREE.Vector3(), aim = new THREE.Vector3(-58, 26, -96), aimTo = new THREE.Vector3(), eye = new THREE.Vector3(), _c = new THREE.Vector3(), _d = new THREE.Vector3();
+const PHOTO_HOLD = 4.2;
+const scopeRT = new THREE.WebGLRenderTarget(384, 384), photoRT = new THREE.WebGLRenderTarget(400, 300);
+const scopeCam = new THREE.PerspectiveCamera(13, 1, 0.5, 1500), photoCam = new THREE.PerspectiveCamera(50, 4 / 3, 0.1, 1500);
+const hud = new THREE.Scene(), hudCam = new THREE.OrthographicCamera(0, 1, 1, 0, -10, 10);
+const flat = (geo, opts) => { const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ transparent: true, depthTest: false, depthWrite: false, ...opts })); hud.add(m); return m; };
+const lensEdge = flat(new THREE.CircleGeometry(1.1, 64), { color: 0x7a2430 });
+const lensRim = flat(new THREE.CircleGeometry(1.07, 64), { color: 0x2b2f33 });
+const lens = flat(new THREE.CircleGeometry(1, 64), { map: scopeRT.texture });
+const card = new THREE.Group(); hud.add(card);
+const cardBack = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: 0xefe9da, transparent: true, depthTest: false, depthWrite: false })); card.add(cardBack);
+const cardPic = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: photoRT.texture, transparent: true, depthTest: false, depthWrite: false })); card.add(cardPic);
+lensEdge.renderOrder = 0; lensRim.renderOrder = 1; lens.renderOrder = 2; cardBack.renderOrder = 3; cardPic.renderOrder = 4;
+
+function lookPoint(out) {
+  const L = watchHits > 0 ? 'meteors' : LOOKS[look_i].name;
+  if (L === 'meteors') return out.copy(rocks[0].to);
+  if (L === 'moon') return hasHit ? out.copy(lastHit) : out.copy(eye).sub(MOON_POS).normalize().multiplyScalar(MOON_R).add(MOON_POS);
+  if (L === 'planet') return giant.getWorldPosition(out);
+  // Earth's edge: the line where the ground meets black space, ahead of Skyrender
+  earth.getWorldPosition(_c); const R = earth.geometry.parameters.radius;
+  _d.copy(_c).sub(eye); const dist = _d.length(); _d.normalize();
+  camera.getWorldDirection(_v); _v.addScaledVector(_d, -_v.dot(_d)).normalize();
+  const a = Math.asin(Math.min(1, R / dist));
+  return out.copy(_d).multiplyScalar(Math.cos(a)).addScaledVector(_v, Math.sin(a)).multiplyScalar(dist).add(eye);
+}
+function runViews(dt, want) {
+  const scope = crew[0], cam = crew[1];
+  const atStation = want && scope.a.visible && S.astroK > 0.95;
+  scopeK += ((atStation ? 1 : 0) - scopeK) * Math.min(1, dt * 2.5); if (scopeK < 0.002) scopeK = 0;
+  if (watchHits > 0 && !rocks.some(r => r.live)) watchHits -= dt;      // keep watching a moment after the last hit
+  if (!scope.a.visible) { watchHits = 0; return; }
+  scope.tool3d.getWorldPosition(eye);
+  lookPoint(aimTo);
+  if (scopeK < 0.05) aim.copy(aimTo); else aim.lerp(aimTo, Math.min(1, dt * 1.6));   // aimed before the window opens, then swings smoothly
+  const fov = watchHits > 0 ? 22 : LOOKS[look_i].fov;
+  scopeCam.fov += (fov - scopeCam.fov) * Math.min(1, dt * 1.6); scopeCam.updateProjectionMatrix();
+  scopeCam.position.copy(eye).addScaledVector(_d.copy(aim).sub(eye).normalize(), 0.5); scopeCam.lookAt(aim);
+  // the camera astronaut's flash: snap a picture of Skyrender now and then
+  photoCool -= dt;
+  const flashing = cam.flash && cam.flash.emissiveIntensity > 0;
+  if (flashing && !lastFlash && photoCool <= 0 && atStation) {
+    photoT = 0; photoCool = 13; photos++;
+    // a picture of the commander at work, with Skyrender's wing and space behind
+    crew[0].a.getWorldPosition(_c); _c.y += 0.9 * ASTRO_SCALE;
+    cam.tool3d.getWorldPosition(photoCam.position); photoCam.position.addScaledVector(_d.copy(photoCam.position).sub(_c).normalize(), -0.6);
+    photoCam.lookAt(_c);
+    say('Click! A picture of the commander studying space', 2.6);
+  }
+  lastFlash = flashing;
+  if (photoT >= 0) { photoT += dt; if (photoT > PHOTO_HOLD + 0.6) photoT = -1; }
+}
+const _sz = new THREE.Vector2();
+// Called by the main loop right after it draws the scene
+function drawMoonViews() {
+  const showScope = scopeK > 0.01 && trip.visible, showPhoto = photoT >= 0 && trip.visible;
+  if (!showScope && !showPhoto) return;
+  const info = renderer.info.autoReset, sh = renderer.shadowMap.autoUpdate, au = scene.autoUpdate;
+  renderer.info.autoReset = false; renderer.shadowMap.autoUpdate = false; scene.autoUpdate = false;   // the main draw already did this work
+  const hide = (c, v) => { c.a.visible = c.tether.visible = v; };
+  if (showScope) { hide(crew[0], false); renderer.setRenderTarget(scopeRT); renderer.render(scene, scopeCam); hide(crew[0], true); }
+  if (showPhoto) { hide(crew[1], false); renderer.setRenderTarget(photoRT); renderer.render(scene, photoCam); hide(crew[1], true); }   // the picture, from where it was taken
+  renderer.setRenderTarget(null);
+  // lay out the round telescope window in the top left, and the picture beside it (below it on a narrow screen)
+  renderer.getSize(_sz); const w = _sz.x, h = _sz.y;
+  hudCam.right = w; hudCam.top = h; hudCam.updateProjectionMatrix();
+  const R = Math.max(50, Math.min(105, Math.min(w, h) * 0.15)), cx = 18 + R * 1.1, cy = h - 18 - R * 1.1, k = ease(scopeK);
+  for (const m of [lensEdge, lensRim, lens]) { m.position.set(cx, cy, 0); m.scale.setScalar(R * Math.max(0.001, k)); m.visible = showScope; }
+  card.visible = showPhoto;
+  if (showPhoto) {
+    // dropped on top of the telescope window's lower right corner, like a photo on a desk
+    const pw = R * 1.7, ph = pw * 0.75;
+    const drop = ease(c01(photoT / 0.35)), fade = 1 - c01((photoT - PHOTO_HOLD) / 0.6);
+    card.position.set(cx + R * 0.9, cy - R * 0.75 + (1 - drop) * 40 + (1 - fade) * 30, 0); card.rotation.z = -0.07 + (1 - drop) * 0.12;
+    cardBack.scale.set(pw + 12, ph + 22, 1); cardBack.position.y = -4; cardPic.scale.set(pw, ph, 1);
+    cardBack.material.opacity = cardPic.material.opacity = drop * fade;
+  }
+  renderer.autoClear = false; renderer.clearDepth(); renderer.render(hud, hudCam); renderer.autoClear = true;
+  renderer.info.autoReset = info; renderer.shadowMap.autoUpdate = sh; scene.autoUpdate = au;
+}
+
+export { drawMoonViews, moonAction, runMoonTrip };

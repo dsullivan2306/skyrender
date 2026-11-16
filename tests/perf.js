@@ -44,6 +44,11 @@ const results = [];
 for (const [i, m] of MODES.entries()) results.push(await measure(m, () => page.tap(`[data-mode="${i}"]`)));
 results.push(await measure('Truck crash', async () => { await page.tap('[data-mode="4"]'); await page.waitForTimeout(3500); await page.getByRole('button', { name: 'Crash!', exact: true }).tap(); }));
 results.push(await measure('Airport inside', async () => { await page.tap('[data-mode="0"]'); await page.waitForTimeout(3500); await page.getByRole('button', { name: 'Go inside airport', exact: true }).tap(); }));
+results.push(await measure('Space, astronauts', async () => {             // the telescope window and the photo draw the scene again
+  await page.reload({ waitUntil: 'domcontentloaded' }); await page.waitForTimeout(17000);           // a fresh start: plane mode takes off by itself
+  await page.getByRole('button', { name: 'Fly to space', exact: true }).tap(); await page.waitForTimeout(12000);
+  await page.getByRole('button', { name: 'Astronauts', exact: true }).tap(); await page.waitForTimeout(9000);
+}));
 await browser.close(); server.close();
 const over = results.filter(r => r.work95 > BUDGET_MS);
 console.log(over.length ? 'over budget (' + BUDGET_MS + ' ms): ' + over.map(r => r.name).join(', ') : 'all within the ' + BUDGET_MS + ' ms budget');

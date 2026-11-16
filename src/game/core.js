@@ -476,7 +476,7 @@ function frame() {
     target3.y + rr * Math.cos(ph),
     target3.z + rr * Math.sin(ph) * Math.cos(theta));
   camera.lookAt(target3);
-  if (linked.cab.active) { linked.updateCabin(dt); renderer.render(linked.cabinScene, linked.cabinCam); } else renderer.render(scene, camera);
+  if (linked.cab.active) { linked.updateCabin(dt); renderer.render(linked.cabinScene, linked.cabinCam); } else { renderer.render(scene, camera); linked.drawMoonViews(); }
   requestAnimationFrame(frame);
 }
 // Start the toy: called by main.js once every module is built and linked.
