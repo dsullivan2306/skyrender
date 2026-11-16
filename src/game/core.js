@@ -24,7 +24,7 @@ import { flyJr } from './jr.js';
 import { runRobot } from './robot.js';
 import { H_SPEED, requestPark, runPark } from './park.js';
 import { beam, buildNight, runSky } from './night.js';
-import { launchCaption, runCountdown, runEngines, runLaunchSmoke, runSwingArm, startRocket } from './rocket.js';
+import { buildDeluge, launchCaption, runCountdown, runDeluge, runEngines, runLaunchSmoke, runSwingArm, startRocket } from './rocket.js';
 
 // The truck world (truck/truck.js) and the plane cabin (cabin/cabin.js) are built after this file runs,
 // in the same order as before the split. The main loop still needs some of their pieces, so main.js
@@ -374,7 +374,7 @@ function frame() {
   rig.M.beacon.emissiveIntensity = S.plan.to === 0 && S.on.lights ? (Math.sin(S.clockT * 7) > 0 ? 2.5 : 0.2) : 0.8;
   runCountdown(onPad);
 
-  runLaunchSmoke(onPad);
+  runLaunchSmoke(onPad); runDeluge(sdt, onPad);
 
   // ---- set it down: lowest part rests on the ground, or wheel treads on the rail tops ----
   flyer.position.set(0, 0, 0); flyer.rotation.set(0, 0, 0);
@@ -487,6 +487,7 @@ function frame() {
 // Start the toy: called by main.js once every module is built and linked.
 function start() {
   buildCrossing();            // the railroad crossing (game/train.js), built last so everything before it is built as always
+  buildDeluge();              // the launch pad's water cannons (game/rocket.js)
   setButtons();
   frame();
 }

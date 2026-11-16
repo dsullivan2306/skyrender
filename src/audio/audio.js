@@ -103,6 +103,8 @@ const sfx = {
   click: () => play(t => { noise(t, 0.05, 3200, 0.07, 'highpass'); tone(200, t, 0.07, 'square', 0.04, 110); }),
   lock: () => play(t => { tone(140, t, 0.09, 'triangle', 0.09, 90); noise(t, 0.04, 1800, 0.05, 'highpass'); }),       // parts meeting and locking
   whirr: dur => play(t => tone(110, t, dur, 'sawtooth', 0.025, 360)),
+  // the rainbirds open: a rush of water across the pad
+  deluge: () => play(t => { noise(t, 6, 900, 0.05, 'bandpass'); noise(t, 6, 2600, 0.02, 'highpass'); }),
   beep: hi => play(t => tone(hi ? 1046 : 784, t, hi ? 0.4 : 0.12, 'sine', 0.07)),
   size: up => play(t => { tone(up ? 90 : 520, t, 0.9, 'sawtooth', 0.05, up ? 420 : 110); tone(up ? 180 : 1040, t, 0.9, 'sine', 0.06, up ? 840 : 220); }),
   airhorn: () => play(t => { for (const o of [0, 0.55]) for (const f of [185, 233, 277]) tone(f, t + o, o ? 0.9 : 0.45, 'sawtooth', 0.045); }),

@@ -1,4 +1,5 @@
 // Deeper worlds: true details that grow out of what each mode already does.
+// Rocket: water cannons flood the pad before ignition; the white cloud is mostly steam.
 // Train: the railroad crossing between stations: lights, bell, gates, the crossing whistle, a car that waits.
 export default async ({ page, step, shot, click }) => {
   const cap = () => page.$eval('#step', e => e.textContent);
@@ -17,4 +18,10 @@ export default async ({ page, step, shot, click }) => {
   await until(c => c.startsWith('The gates go up'), 'gates go up once the train has passed');
   await until(c => c.startsWith('Gates up. Now the car'), 'the car drives across');
   await step(10); await shot('w-train-3');
+  // the rocket: the rainbirds open during the countdown, and the cloud at liftoff is steam
+  await click(3);
+  await until(c => c.startsWith('Countdown! Water'), 'water sprays the pad before ignition');
+  must(await page.evaluate(() => window.__sfx.includes('deluge')), 'the rush of water', {});
+  await step(14); await shot('w-rocket-1');
+  await until(c => c.startsWith('That big white cloud is steam'), 'the steam explained after liftoff');
 };
