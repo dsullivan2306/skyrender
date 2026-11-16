@@ -41,14 +41,14 @@ const atmo = new THREE.Mesh(new THREE.SphereGeometry(272, 64, 40), atmoMat); atm
 const moonMat = new THREE.MeshStandardMaterial({ color: 0xcfcfc8, roughness: 1, transparent: true, opacity: 0, fog: false, flatShading: true });
 const moon = new THREE.Mesh(new THREE.IcosahedronGeometry(9, 2), moonMat); moon.position.set(-90, 60, -150); space.add(moon);
 
-// A ringed giant and a small red planet, made up for this solar system
+// Saturn (pale gold bands and its rings) and Mars (rusty red, white ice caps). space/planets.js lines them up
+// with the other planets, in order from the Sun.
 const planetMats = [];
 const canvasTex = (w, h, draw) => { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.anisotropy = 4; return t; };
 const giantTex = canvasTex(512, 256, (g, w, h) => {
-  const bands = ['#d8b07a', '#c98f55', '#e6c995', '#b9774a', '#e9d3a8', '#c58a58', '#dcb683', '#a86c44', '#e4c592'];
+  const bands = ['#e3cf9e', '#d6bb83', '#ead9ad', '#c9a86f', '#efe0b8', '#d2b47c', '#e6d2a2', '#bf9d66', '#ecdcb0'];
   let y = 0; let ps = 3;
   while (y < h) { const bh = 8 + ((ps = (ps * 16807) % 2147483647) % 22); g.fillStyle = bands[(ps >> 3) % bands.length]; g.fillRect(0, y, w, bh); y += bh; }
-  g.globalAlpha = 0.5; g.fillStyle = '#a4552f'; g.beginPath(); g.ellipse(330, 150, 34, 16, 0, 0, Math.PI * 2); g.fill();
 });
 const giantMat = new THREE.MeshStandardMaterial({ map: giantTex, roughness: 1, emissive: 0x2a1a0a, emissiveIntensity: 0.4, transparent: true, opacity: 0, fog: false });
 const giant = new THREE.Mesh(new THREE.SphereGeometry(22, 48, 32), giantMat);
@@ -65,7 +65,8 @@ const redTex = canvasTex(256, 128, (g, w, h) => {
   g.fillStyle = '#b5543a'; g.fillRect(0, 0, w, h);
   let ps = 9; const r = () => (ps = (ps * 16807) % 2147483647) / 2147483647;
   for (let i = 0; i < 40; i++) { g.fillStyle = r() > 0.5 ? 'rgba(120,48,30,0.6)' : 'rgba(214,128,92,0.5)'; g.beginPath(); g.arc(r() * w, r() * h, 3 + r() * 12, 0, Math.PI * 2); g.fill(); }
-  g.fillStyle = '#efe2d6'; g.fillRect(0, 0, w, 7);
+  g.fillStyle = '#efe2d6'; g.fillRect(0, 0, w, 7); g.fillRect(0, h - 5, w, 5);
+  g.fillStyle = 'rgba(80,30,20,0.55)'; g.fillRect(40, h * 0.52, 90, 4);           // Valles Marineris, a canyon as long as America is wide
 });
 const redMat = new THREE.MeshStandardMaterial({ map: redTex, roughness: 1, transparent: true, opacity: 0, fog: false });
 const redPlanet = new THREE.Mesh(new THREE.SphereGeometry(11, 32, 20), redMat);
@@ -81,4 +82,4 @@ for (let i = 0; i < 18; i++) {
   m.visible = false; groundSet.add(m); smoke.push(m);
 }
 
-export { atmoMat, earth, earthMat, giant, moonMat, planetMats, smoke, smokeMat, space, spaceBot, spaceTop, starMat };
+export { atmo, atmoMat, canvasTex, earth, earthMat, giant, giantMat, moonMat, planetMats, redMat, redPlanet, ringM, ringMat, smoke, smokeMat, space, spaceBot, spaceTop, starMat, stars };

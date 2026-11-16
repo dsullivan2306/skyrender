@@ -306,8 +306,9 @@ function placeTether(c, from, to, t) {
 function runMoonTrip(dt, sp) {
   lastSp = sp; clock += dt;
   moonWait -= dt; if (moonDirty && moonWait <= 0) { moonTex.needsUpdate = moonBump.needsUpdate = true; moonDirty = false; moonWait = 0.25; }
-  trip.visible = sp > 0.001;
-  bigMoonMat.opacity = sp;
+  trip.visible = sp > 0.001 && !S.onMars;
+  bigMoonMat.opacity = sp * (S.homeMoonK ?? 1);              // our Moon stays behind when Skyrender visits other planets (space/planets.js)
+  bigMoon.visible = bigMoonMat.opacity > 0.002;
   // meteors: speeding up as the Moon pulls them in, shedding grains
   for (const r of rocks) {
     if (!r.live) continue;
@@ -336,7 +337,7 @@ function runMoonTrip(dt, sp) {
     f.s.material.opacity = f.t < 0.12 ? f.t / 0.12 : 1 - (f.t - 0.12) / 0.88; f.s.scale.setScalar(f.size * (0.6 + 0.6 * f.t)); f.s.visible = f.t < 1 && trip.visible;
   }
   // astronauts: out only in space, back in before the plane comes down
-  const want = S.on.astro && S.on.space && inSpace(sp) ? 1 : 0;
+  const want = S.on.astro && S.on.space && inSpace(sp) && !S.onMars ? 1 : 0;   // on Mars they walk instead (space/planets.js)
   S.astroK += (want - S.astroK) * Math.min(1, dt * 0.45);
   if (Math.abs(want - S.astroK) < 0.002) S.astroK = want;
   const show = S.astroK > 0.01;
@@ -390,13 +391,15 @@ function runMoonTrip(dt, sp) {
 // blue air. A telescope makes faraway things look big by gathering their light into a narrow view. Every so often
 // the other astronaut's camera flashes and their picture of the commander at work drops in, then floats away.
 const LOOKS = [
-  { name: 'moon', fov: 13, line: () => hasHit ? 'Through the telescope: your new crater, up close. See the mountain in the middle?' : 'Through the telescope: Moon craters up close. Big ones have a mountain in the middle' },
-  { name: 'planet', fov: 28, line: () => 'Through the telescope: the ringed planet. Its rings are billions of chunks of ice and rock' },
-  { name: 'earth', fov: 30, line: () => 'Through the telescope: home! That thin blue line is all the air wrapped around Earth' },
+  // away from Earth (space/planets.js), the same three looks study the planet Skyrender is visiting, then tiny Earth far away
+  { name: 'moon', fov: () => away() ? 16 : 13, line: () => away() ? S.visitScope : hasHit ? 'Through the telescope: your new crater, up close. See the mountain in the middle?' : 'Through the telescope: Moon craters up close. Big ones have a mountain in the middle' },
+  { name: 'planet', fov: () => away() ? 5 : 9, line: () => away() ? 'Through the telescope: tiny Earth, way back home' : 'Through the telescope: Saturn. Its rings are billions of chunks of ice and rock' },
+  { name: 'earth', fov: () => 30, line: () => away() ? 'Through the telescope: the edge of ' + S.visitName + ', where it meets black space' : 'Through the telescope: home! That thin blue line is all the air wrapped around Earth' },
 ];
 let look_i = 0, tick = 0, watchHits = 0, hasHit = false, scopeK = 0, photoT = -1, photoCool = 4, photos = 0, lastFlash = false;
 const lastHit = new THREE.Vector3(), aim = new THREE.Vector3(-58, 26, -96), aimTo = new THREE.Vector3(), eye = new THREE.Vector3(), _c = new THREE.Vector3(), _d = new THREE.Vector3();
 const PHOTO_HOLD = 4.2;
+const away = () => S.visit && S.visit !== 'earth';
 const scopeRT = new THREE.WebGLRenderTarget(384, 384), photoRT = new THREE.WebGLRenderTarget(400, 300);
 const scopeCam = new THREE.PerspectiveCamera(13, 1, 0.5, 1500), photoCam = new THREE.PerspectiveCamera(50, 4 / 3, 0.1, 1500);
 const hud = new THREE.Scene(), hudCam = new THREE.OrthographicCamera(0, 1, 1, 0, -10, 10);
@@ -412,13 +415,13 @@ lensEdge.renderOrder = 0; lensRim.renderOrder = 1; lens.renderOrder = 2; cardBac
 function lookPoint(out) {
   const L = watchHits > 0 ? 'meteors' : LOOKS[look_i].name;
   if (L === 'meteors') return out.copy(rocks[0].to);
-  if (L === 'moon') return hasHit ? out.copy(lastHit) : out.copy(eye).sub(MOON_POS).normalize().multiplyScalar(MOON_R).add(MOON_POS);
-  if (L === 'planet') return giant.getWorldPosition(out);
+  if (L === 'moon' && !away()) return hasHit ? out.copy(lastHit) : out.copy(eye).sub(MOON_POS).normalize().multiplyScalar(MOON_R).add(MOON_POS);
+  if (L === 'planet') return away() && S.homeDot ? out.copy(S.homeDot) : giant.getWorldPosition(out);
   // Earth's edge: the line where the ground meets black space, ahead of Skyrender
-  earth.getWorldPosition(_c); const R = earth.geometry.parameters.radius;
+  let R; if (away() && S.bigAt) { _c.copy(S.bigAt); R = S.bigR; } else { earth.getWorldPosition(_c); R = earth.geometry.parameters.radius; }   // or the planet Skyrender is visiting
   _d.copy(_c).sub(eye); const dist = _d.length(); _d.normalize();
   camera.getWorldDirection(_v); _v.addScaledVector(_d, -_v.dot(_d)).normalize();
-  const a = Math.asin(Math.min(1, R / dist));
+  const a = Math.asin(Math.min(1, R / dist)) * (L === 'moon' ? 0.86 : 1);   // a little in from the edge: the planet's clouds up close
   return out.copy(_d).multiplyScalar(Math.cos(a)).addScaledVector(_v, Math.sin(a)).multiplyScalar(dist).add(eye);
 }
 function runViews(dt, want) {
@@ -430,7 +433,7 @@ function runViews(dt, want) {
   scope.tool3d.getWorldPosition(eye);
   lookPoint(aimTo);
   if (scopeK < 0.05) aim.copy(aimTo); else aim.lerp(aimTo, Math.min(1, dt * 1.6));   // aimed before the window opens, then swings smoothly
-  const fov = watchHits > 0 ? 22 : LOOKS[look_i].fov;
+  const fov = watchHits > 0 ? 22 : LOOKS[look_i].fov();
   scopeCam.fov += (fov - scopeCam.fov) * Math.min(1, dt * 1.6); scopeCam.updateProjectionMatrix();
   scopeCam.position.copy(eye).addScaledVector(_d.copy(aim).sub(eye).normalize(), 0.5); scopeCam.lookAt(aim);
   // the camera astronaut's flash: snap a picture of Skyrender now and then
@@ -476,4 +479,4 @@ function drawMoonViews() {
   renderer.info.autoReset = info; renderer.shadowMap.autoUpdate = sh; scene.autoUpdate = au;
 }
 
-export { drawMoonViews, moonAction, runMoonTrip };
+export { ASTRO_SCALE, drawMoonViews, makeAstronaut, moonAction, runMoonTrip };

@@ -22,7 +22,8 @@ import { link, start } from './game/core.js';   // the toy itself: state, button
 import * as truck from './truck/truck.js';       // traffic, crashes, police, walkers
 import * as cabin from './cabin/cabin.js';       // INSIDE SKYRENDER: boarding and the plane cabin
 import './ideas/ideas.js';
-import * as moonTrip from './space/moontrip.js';  // Jasper's first idea: the huge Moon, meteors and astronauts                       // Jasper's ideas that came true (page only, no 3D)
+import * as moonTrip from './space/moontrip.js';  // Jasper's first idea: the huge Moon, meteors and astronauts
+import * as planets from './space/planets.js';    // Jasper's second idea: all the planets, flying to them, landing on Mars
 
-link({ ...truck, ...cabin, ...moonTrip });
+link({ ...truck, ...cabin, ...moonTrip, ...planets });
 start();

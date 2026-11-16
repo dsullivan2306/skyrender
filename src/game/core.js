@@ -42,7 +42,8 @@ rig.jr.j.traverse(o => { if (o.isMesh) skipBox.add(o); });      // Jr. flies off
 
 // Fun toggles for each mode. 'toggle' buttons stay on or off; 'press' buttons do something once.
 const ACTIONS = [
-  [{ id: 'door', label: 'Open door' }, { id: 'gear', label: 'Gear up' }, { id: 'lights', label: 'Flash lights' }, { id: 'peek', label: 'See inside airport' }, { id: 'goin', label: 'Go inside airport' }, { id: 'board', label: 'Board the plane', press: true }, { id: 'space', label: 'Fly to space' }, { id: 'meteors', label: 'Meteors', press: true }, { id: 'astro', label: 'Astronauts' }],
+  [{ id: 'visit', label: 'Go to a planet', seg: [['mercury', 'Mercury'], ['venus', 'Venus'], ['earth', 'Earth'], ['mars', 'Mars'], ['jupiter', 'Jupiter'], ['saturn', 'Saturn'], ['uranus', 'Uranus'], ['neptune', 'Neptune']] },
+    { id: 'land', label: 'Land', press: true }, { id: 'door', label: 'Open door' }, { id: 'gear', label: 'Gear up' }, { id: 'lights', label: 'Flash lights' }, { id: 'peek', label: 'See inside airport' }, { id: 'goin', label: 'Go inside airport' }, { id: 'board', label: 'Board the plane', press: true }, { id: 'space', label: 'Fly to space' }, { id: 'meteors', label: 'Meteors', press: true }, { id: 'astro', label: 'Astronauts' }],
   [{ id: 'size', seg: [['small', 'Small'], ['medium', 'Medium'], ['big', 'Big']] }, { id: 'wave', label: 'Wave' }, { id: 'march', label: 'March' }, { id: 'mask', label: 'Mask off' }, { id: 'hatch', label: 'Close hatch' }],
   [{ id: 'whistle', label: 'Whistle', press: true }, { id: 'stop', label: 'Stop train' }, { id: 'lamp', label: 'Lamp off' }],
   [{ id: 'arm', label: 'Swing arm away' }, { id: 'launch', label: 'Launch now', press: true }],
@@ -83,6 +84,7 @@ function caption() {
   if (S.flash && S.flash.until > S.clockT) return S.flash.text;
   if (linked.cab.active) return linked.cabCaption();
   if (linked.board.active) return 'Travelers climb aboard with their suitcases';
+  const pc = linked.planetCaption(); if (pc) return pc;         // flying between planets, at another planet, or on Mars
   if (S.parkState === 1) return S.homeK < 1 ? 'Heading home...' : S.parkZ < 0.5 ? (S.parkRobot ? 'The front door opens' : 'The garage door rolls up') : S.parkZ < S.parkD - 0.1 ? (S.parkRobot ? 'Robot marches into his house' : 'Pulling into the garage') : 'Closing up for the night';
   if (S.parkState === 2) return S.parkRobot ? 'Robot is home. Sweet dreams!' : 'All parked. Sweet dreams!';
   if (S.parkState === 3) return 'Coming back out to play';
@@ -128,11 +130,12 @@ function buildActions(m) {
   if (m < 0) return;
   for (const a of ACTIONS[m]) {
     if (a.seg) {                                     // a row of choices where exactly one is picked
-      const row = document.createElement('div'); row.className = 'seg'; row.setAttribute('role', 'group'); row.setAttribute('aria-label', 'Robot size');
+      const row = document.createElement('div'); row.className = a.id === 'visit' ? 'seg planets' : 'seg'; row.setAttribute('role', 'group'); row.setAttribute('aria-label', a.label || 'Robot size'); row.dataset.id = a.id;
       for (const [val, label] of a.seg) {
-        const b = document.createElement('button'); b.type = 'button'; b.textContent = label;
-        b.setAttribute('aria-pressed', String(S.on[a.id] === val));
-        b.addEventListener('click', () => { setSize(val); row.querySelectorAll('button').forEach((x, i) => x.setAttribute('aria-pressed', String(a.seg[i][0] === val))); });
+        const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.dataset.val = val;
+        b.setAttribute('aria-pressed', String(a.id === 'visit' ? val === 'earth' : S.on[a.id] === val));
+        if (a.id === 'visit') b.addEventListener('click', () => linked.goPlanet(val));    // the planets (space/planets.js) light their own button
+        else b.addEventListener('click', () => { setSize(val); row.querySelectorAll('button').forEach((x, i) => x.setAttribute('aria-pressed', String(a.seg[i][0] === val))); });
         row.appendChild(b);
       }
       actsEl.appendChild(row); continue;
@@ -145,12 +148,18 @@ function buildActions(m) {
 }
 // Some plane buttons only make sense in some places: Meteors and Astronauts in space; the airport buttons on the way there.
 let actsShown = '';
+// Jasper's planets (space/planets.js): the planet row in space, Land at Earth and Mars, Take off on Mars.
 function showActions(sp) {
-  const space = S.plan.to === 0 && sp > 0.8, high = S.plan.to === 0 && S.planeAlt > 0;
-  const key = space + '|' + high + '|' + actsFor; if (key === actsShown) return; actsShown = key;
-  for (const b of actsEl.querySelectorAll('button[data-id]')) {
+  const space = S.plan.to === 0 && sp > 0.8, high = S.plan.to === 0 && S.planeAlt > 0, pu = linked.planetUI();
+  const key = space + '|' + high + '|' + actsFor + '|' + pu.at + '|' + pu.to + '|' + pu.landed + '|' + pu.busy + '|' + pu.canLand; if (key === actsShown) return; actsShown = key;
+  const ground = pu.landed || pu.busy;               // on Mars, or on the way down or up
+  for (const b of actsEl.querySelectorAll('[data-id]')) {
     const id = b.dataset.id;
-    b.hidden = ((id === 'meteors' || id === 'astro') && !space) || ((id === 'peek' || id === 'goin' || id === 'board') && high);
+    b.hidden = ((id === 'meteors') && (!space || pu.at !== 'earth' || ground || pu.to)) || ((id === 'astro') && !space && !pu.landed) ||
+      ((id === 'peek' || id === 'goin' || id === 'board') && high) || (id === 'visit' && (!space || ground)) ||
+      (id === 'land' && !(space && pu.canLand) && !pu.landed) || (id === 'space' && ground) || ((id === 'door' || id === 'gear') && space && !pu.landed);   // in space the astronauts open the door themselves
+    if (id === 'land') b.textContent = pu.landed ? 'Take off' : pu.at === 'mars' ? 'Land on Mars' : 'Land at home';
+    if (id === 'visit') for (const c of b.querySelectorAll('button')) c.setAttribute('aria-pressed', String(c.dataset.val === (pu.to || pu.at)));
   }
 }
 function setSize(val) {
@@ -174,7 +183,9 @@ function doAction(a, b) {
   if (a.id === 'goin') { say(S.on.goin ? 'Skyrender rolls into the airport through the big glass doors' : 'Skyrender rolls back out to the runway', 2.4); if ((S.on.goin || S.on.peek) && S.planeT > 0) { S.pending = 0; setButtons(); } }
   if (a.id === 'peek' && S.on.peek && S.planeT > 0) { S.pending = 0; setButtons(); }
   if (a.id === 'board') requestPark();
-  if (a.id === 'space' || a.id === 'meteors' || a.id === 'astro') linked.moonAction(a.id);
+  if (a.id === 'space' || a.id === 'meteors' || (a.id === 'astro' && !linked.planetUI().landed)) linked.moonAction(a.id);
+  if (a.id === 'astro' && linked.planetUI().landed) say(S.on.astro ? 'The astronauts hop down onto Mars' : 'Astronauts, back inside!', 2.4);
+  if (a.id === 'land') linked.landAction();
   if (a.id === 'honk') { S.hop = 1; say('Beep beep!'); sfx.honk(); }
   if (a.id === 'moo') {                              // each press, the next animal speaks up and hops
     const [kind, line] = FARM_TALK[farmTalk++ % FARM_TALK.length];
@@ -360,6 +371,7 @@ function frame() {
   }
 
   runSky(dt, air, sp);
+  linked.runPlanets(dt, sp);
   linked.runMoonTrip(dt, sp);
   showActions(sp);          // the huge Moon, meteors and astronauts (space/moontrip.js)
 
@@ -401,6 +413,8 @@ function frame() {
   flyer.rotation.y = S.orbitRoll + linked.veer.yaw; flyer.position.x += linked.veer.x; flyer.position.z += S.parkZ + S.hallZ;
   if (S.stompK > 0) { S.stompK = Math.max(0, S.stompK - dt * 6); if (!reduceMotion) flyer.position.y -= Math.sin(Math.min(1, S.stompK) * Math.PI) * 0.025 * S.stompK; }
   if (S.hop > 0) { S.hop = Math.max(0, S.hop - dt * 1.8); flyer.position.y += Math.abs(Math.sin(S.hop * Math.PI * 3)) * 0.18 * S.hop; }
+  const mv = linked.marsView();
+  if (mv.on) { flyer.position.y = mv.y; flyer.rotation.x = flyer.rotation.z = 0; }   // landed on Mars: resting on its wheels
   center.y += flyer.position.y;
 
   // Petals, leaves or snow drift down around the toy (not up in the sky)
@@ -461,7 +475,8 @@ function frame() {
   idle += dt;
   if (!dragging && idle > 2 && !reduceMotion && S.homeK < 0.01) {
     if (settled() && S.plan.to === 0 && sp > 0.5) {   // in space, the plane turns so the huge Moon is right behind it
-      const d = ((0.6 - theta) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI; theta += d * Math.min(1, dt * 0.5);
+      const tw = linked.marsView().on ? 1.25 : 0.6;     // on Mars, a side view of the door and the astronauts at work
+      const d = ((tw - theta) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI; theta += d * Math.min(1, dt * 0.5);
     } else if (settled() && xk > 0.05) {               // at the crossing, a front three-quarter view from the car's side
       const d = ((0.45 - theta) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI; theta += d * Math.min(1, dt * 0.7) * xk;
       phi += (1.0 - phi) * Math.min(1, dt * 0.7) * xk;
@@ -484,7 +499,7 @@ function frame() {
     target3.y + rr * Math.cos(ph),
     target3.z + rr * Math.sin(ph) * Math.cos(theta));
   camera.lookAt(target3);
-  if (linked.cab.active) { linked.updateCabin(dt); renderer.render(linked.cabinScene, linked.cabinCam); } else { renderer.render(scene, camera); linked.drawMoonViews(); }
+  if (linked.cab.active) { linked.updateCabin(dt); renderer.render(linked.cabinScene, linked.cabinCam); } else if (linked.marsView().on) renderer.render(linked.marsView().scene, camera); else { renderer.render(scene, camera); linked.drawMoonViews(); }
   requestAnimationFrame(frame);
 }
 // Start the toy: called by main.js once every module is built and linked.

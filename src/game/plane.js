@@ -54,7 +54,7 @@ function runPlane(sdt, live) {
   // Up to space (Jasper's idea): once it's cruising, rocket power takes it higher than air can carry a plane.
   // It comes back down when Fly to space is turned off or it's time to land, after the astronauts are back inside.
   if (S.plan.to === 0 && live && S.pending === null && air >= 0.999 && S.on.space) S.planeAlt = Math.min(720, S.planeAlt + sdt * (20 + S.planeAlt * 0.9));
-  else if (S.astroK < 0.02) S.planeAlt = Math.max(0, S.planeAlt - sdt * (60 + S.planeAlt * 1.2));
+  else if (S.astroK < 0.02 && !S.away) S.planeAlt = Math.max(0, S.planeAlt - sdt * (60 + S.planeAlt * 1.2));
   return air;
 }
 
