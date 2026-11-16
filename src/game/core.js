@@ -42,7 +42,7 @@ rig.jr.j.traverse(o => { if (o.isMesh) skipBox.add(o); });      // Jr. flies off
 
 // Fun toggles for each mode. 'toggle' buttons stay on or off; 'press' buttons do something once.
 const ACTIONS = [
-  [{ id: 'door', label: 'Open door' }, { id: 'gear', label: 'Gear up' }, { id: 'lights', label: 'Flash lights' }, { id: 'peek', label: 'See inside airport' }, { id: 'goin', label: 'Go inside airport' }, { id: 'board', label: 'Board the plane', press: true }],
+  [{ id: 'door', label: 'Open door' }, { id: 'gear', label: 'Gear up' }, { id: 'lights', label: 'Flash lights' }, { id: 'peek', label: 'See inside airport' }, { id: 'goin', label: 'Go inside airport' }, { id: 'board', label: 'Board the plane', press: true }, { id: 'space', label: 'Fly to space' }, { id: 'meteors', label: 'Meteors', press: true }, { id: 'astro', label: 'Astronauts' }],
   [{ id: 'size', seg: [['small', 'Small'], ['medium', 'Medium'], ['big', 'Big']] }, { id: 'wave', label: 'Wave' }, { id: 'march', label: 'March' }, { id: 'mask', label: 'Mask off' }, { id: 'hatch', label: 'Close hatch' }],
   [{ id: 'whistle', label: 'Whistle', press: true }, { id: 'stop', label: 'Stop train' }, { id: 'lamp', label: 'Lamp off' }],
   [{ id: 'arm', label: 'Swing arm away' }, { id: 'launch', label: 'Launch now', press: true }],
@@ -57,7 +57,7 @@ const target3 = new THREE.Vector3(0, 1.2, 0);
 function startMorph(m) {
   S.plan = planMorph(rig, m, settled() ? S.mode : null);
   S.envFrom = { ...S.env }; S.tt = 0; S.paused = false;
-  if (m === 0) { S.planeT = 0; S.planeTravel = 0; }
+  if (m === 0) { S.planeT = 0; S.planeTravel = 0; S.planeAlt = 0; }
   if (m === 2) { S.trainT = 0; S.stationTravel = 0; }
   if (m === 4) { S.truckT = 0; }
   if (m === 5) { S.tractorT = 0; }
@@ -135,10 +135,20 @@ function buildActions(m) {
       }
       actsEl.appendChild(row); continue;
     }
-    const b = document.createElement('button'); b.type = 'button'; b.textContent = a.label;
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = a.label; b.dataset.id = a.id;
     if (!a.press) b.setAttribute('aria-pressed', 'false');
     b.addEventListener('click', () => doAction(a, b));
     actsEl.appendChild(b);
+  }
+}
+// Some plane buttons only make sense in some places: Meteors and Astronauts in space; the airport buttons on the way there.
+let actsShown = '';
+function showActions(sp) {
+  const space = S.plan.to === 0 && sp > 0.8, high = S.plan.to === 0 && S.planeAlt > 0;
+  const key = space + '|' + high + '|' + actsFor; if (key === actsShown) return; actsShown = key;
+  for (const b of actsEl.querySelectorAll('button[data-id]')) {
+    const id = b.dataset.id;
+    b.hidden = ((id === 'meteors' || id === 'astro') && !space) || ((id === 'peek' || id === 'goin' || id === 'board') && high);
   }
 }
 function setSize(val) {
@@ -161,6 +171,7 @@ function doAction(a, b) {
   if (a.id === 'goin') { say(S.on.goin ? 'Skyrender rolls into the airport through the big glass doors' : 'Skyrender rolls back out to the runway', 2.4); if ((S.on.goin || S.on.peek) && S.planeT > 0) { S.pending = 0; setButtons(); } }
   if (a.id === 'peek' && S.on.peek && S.planeT > 0) { S.pending = 0; setButtons(); }
   if (a.id === 'board') requestPark();
+  if (a.id === 'space' || a.id === 'meteors' || a.id === 'astro') linked.moonAction(a.id);
   if (a.id === 'honk') { S.hop = 1; say('Beep beep!'); sfx.honk(); }
   if (a.id === 'moo') {                              // each press, the next animal speaks up and hops
     const [kind, line] = FARM_TALK[farmTalk++ % FARM_TALK.length];
@@ -257,7 +268,7 @@ function frame() {
   // ---- advance the transformation (or come home from the sky first) ----
   if (S.pending !== null) {
     if (S.plan.to === 3) S.launchT = Math.max(0, S.launchT - sdt * 4);
-    if (S.plan.to === 0) S.planeT = Math.max(0, S.planeT - sdt * (S.planeT > PLANE_LIFT ? 2.5 : 1.2));
+    if (S.plan.to === 0 && S.planeAlt <= 0) S.planeT = Math.max(0, S.planeT - sdt * (S.planeT > PLANE_LIFT ? 2.5 : 1.2));   // down from space first
     const down = S.plan.to === 3 ? S.launchT === 0 : S.planeT <= 0;
     if (down) { const m = S.pending; S.pending = null; S.launchT = 0; S.planeT = 0; if (m !== S.plan.to) startMorph(m); else setButtons(); }
   } else if (!S.paused && S.tt < S.plan.T) {
@@ -281,7 +292,8 @@ function frame() {
 
   const air = runPlane(sdt, live);            // 0 on the ground, 1 cruising above the clouds
 
-  const { onPad, sp } = startRocket(sdt, live);   // sp: 0 in the sky, 1 in space
+  let { onPad, sp } = startRocket(sdt, live);
+  if (S.plan.to === 0 && S.planeAlt > 0) { S.alt = S.planeAlt; sp = clamp01((S.alt - 150) / 450); }   // the plane in space   // sp: 0 in the sky, 1 in space
 
   runTrain(dt, sdt, live);
   const parkV = (S.parkZ - lastParkZ) / Math.max(dt, 1e-6); lastParkZ = S.parkZ;   // how fast it's really driving in or out
@@ -345,6 +357,8 @@ function frame() {
   }
 
   runSky(dt, air, sp);
+  linked.runMoonTrip(dt, sp);
+  showActions(sp);          // the huge Moon, meteors and astronauts (space/moontrip.js)
 
   runEngines(dt, onPad, sp);
   rig.M.glow.emissiveIntensity = 0.35 + 2.5 * S.thrust + 0.6 * S.planeSpeed / 28;
@@ -441,7 +455,9 @@ function frame() {
   fitScale += (want - fitScale) * (1 - Math.exp(-dt * 2));
   idle += dt;
   if (!dragging && idle > 2 && !reduceMotion && S.homeK < 0.01) {
-    if (settled()) theta += dt * (0.1 - 0.06 * S.viewK);
+    if (settled() && S.plan.to === 0 && sp > 0.5) {   // in space, the plane turns so the huge Moon is right behind it
+      const d = ((0.6 - theta) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI; theta += d * Math.min(1, dt * 0.5);
+    } else if (settled()) theta += dt * (0.1 - 0.06 * S.viewK);
     else {                                             // while it transforms, face the action: front three-quarter, trailer side for the big rig
       const want = S.plan.to === 4 ? 2.2 : 0.9, d = ((want - theta) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI;
       theta += d * Math.min(1, dt * 0.8);

@@ -83,6 +83,8 @@ const S = {
   launchT: 0, alt: 0, thrust: 0, orbitRoll: 0, armK: 1,
   // plane
   planeT: 0, planeSpeed: 0, planeTravel: 0,
+  planeAlt: 0,                    // how high above the clouds it has climbed on its way to space
+  astroK: 0,                      // how far the astronauts have floated out (space/moontrip.js)
   // train
   trainT: 0, trainSpeed: 0, stationTravel: 0, crank: 0,
   // big rig

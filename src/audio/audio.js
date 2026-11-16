@@ -96,6 +96,8 @@ const sfx = {
   // a steam engine puffs four times per wheel turn; the first of the four is the strongest
   chuff: v => play(t => { const acc = beat++ % 4 === 0; noise(t, acc ? 0.24 : 0.18, 400 + arnd() * 250, 0.1 * v * (acc ? 1.25 : 0.8), 'lowpass'); }),
   clack: () => play(t => { noise(t, 0.03, 3000, 0.05, 'highpass'); noise(t + 0.11, 0.03, 2800, 0.045, 'highpass'); }),   // wheels over a rail joint
+  // the radio beep astronauts hear before someone speaks (the real one is 2,525 hertz)
+  quindar: () => play(t => tone(2525, t, 0.25, 'sine', 0.03)),
   click: () => play(t => { noise(t, 0.05, 3200, 0.07, 'highpass'); tone(200, t, 0.07, 'square', 0.04, 110); }),
   lock: () => play(t => { tone(140, t, 0.09, 'triangle', 0.09, 90); noise(t, 0.04, 1800, 0.05, 'highpass'); }),       // parts meeting and locking
   whirr: dur => play(t => tone(110, t, dur, 'sawtooth', 0.025, 360)),

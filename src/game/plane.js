@@ -13,6 +13,7 @@ function planeCaption() {
   if (S.planeT < 2) return 'Plane mode, lined up on the runway';
   if (S.planeT < PLANE_LIFT) return 'Rolling down the runway';
   if (S.planeT < PLANE_LIFT + 2.5) return 'Liftoff!';
+  if (S.planeAlt > 0) return !S.on.space || S.pending !== null ? 'Coming back down from space' : S.planeAlt < 150 ? 'Rocket power! Climbing higher than any plane can fly' : S.planeAlt < 600 ? 'Leaving the sky behind' : 'In space! A huge Moon full of craters';
   if (S.planeT < PLANE_LIFT + 7) return 'Climbing into the sky';
   return 'Cruising above the clouds';
 }
@@ -50,6 +51,10 @@ function runPlane(sdt, live) {
   S.planeSpeed = S.plan.to === 0 ? (S.planeT < 2 ? 0 : 6 + 22 * Math.min(1, roll * 1.2)) : 0;
   const air = S.plan.to === 0 ? ease(clamp01((S.planeT - PLANE_LIFT) / 7)) : 0;
   S.planeTravel += S.planeSpeed * sdt * (1 - air);
+  // Up to space (Jasper's idea): once it's cruising, rocket power takes it higher than air can carry a plane.
+  // It comes back down when Fly to space is turned off or it's time to land, after the astronauts are back inside.
+  if (S.plan.to === 0 && live && S.pending === null && air >= 0.999 && S.on.space) S.planeAlt = Math.min(720, S.planeAlt + sdt * (20 + S.planeAlt * 0.9));
+  else if (S.astroK < 0.02) S.planeAlt = Math.max(0, S.planeAlt - sdt * (60 + S.planeAlt * 1.2));
   return air;
 }
 

@@ -85,6 +85,7 @@ The goal behind each request: Jasper sees his own ideas become real. When choosi
   - Boarding: `startBoarding`, `runBoarding`, `noseTuck`.
   - `updateCabin`, the seat picker, bins and surprises, food cart, cockpit buttons (`NAMED` and `SILLY`), flight states (gate, taxi, roll, climb, cruise, descend, landed), clouds, night, rainbow.
   - `window.__cab` is a test hook.
+- `space/moontrip.js`: Jasper's first idea. The huge cratered Moon (for the plane and the rocket; the small Moon in `scenery/space.js` is hidden), the Meteors button (rocks hit the Moon and paint new craters on its canvas texture), and the astronauts on safety lines from the side door. Built last and reached through `linked` (`runMoonTrip`, `moonAction`). The plane's climb to space is `S.planeAlt` in `game/plane.js`; `showActions` in `core.js` shows Meteors and Astronauts only in space. Test hook `window.__moon`.
 - `ideas/ideas.js` and `ideas/list.js`: the "Jasper's ideas" page (page only, no 3D). `window.__ideasTest` is a test hook.
 - `style.css`: the page styles with the light and dark color tokens.
 
