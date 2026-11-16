@@ -38,7 +38,8 @@ const errs = []; page.on('pageerror', e => errs.push(e.message));
 await page.route('**/three.min.js', r => r.fulfill({ body: fs.readFileSync(path.join(root, 'node_modules/three/build/three.min.js')), contentType: 'application/javascript' }));
 await page.route('**fonts.g**', r => r.abort());
 // Everything that could change from run to run is pinned, so the same scenario gives the same pictures every time:
-// the clock is stepped, Math.random follows a fixed seed, timers fire on the stepped clock, and CSS fades are off.
+// the clock is stepped, Math.random follows a fixed seed, timers fire on the stepped clock, CSS fades are off, and
+// the blinking text cursor is hidden (it blinks on the real clock).
 // This only affects the tests; the game itself stays random and real-time.
 await page.addInitScript(() => {
   let t = 0; performance.now = () => t;
@@ -48,7 +49,7 @@ await page.addInitScript(() => {
   window.setTimeout = (f, ms, ...a) => { timers.push({ id: ++tid, due: t + (+ms || 0), f, a }); return tid; };
   window.clearTimeout = id => { const i = timers.findIndex(x => x.id === id); if (i >= 0) timers.splice(i, 1); };
   const runTimers = () => { for (;;) { timers.sort((p, q) => p.due - q.due || p.id - q.id); if (!timers.length || timers[0].due > t) return; const x = timers.shift(); x.f(...x.a); } };
-  document.addEventListener('DOMContentLoaded', () => { const s = document.createElement('style'); s.textContent = '*, *::before, *::after { transition: none !important; animation: none !important; }'; document.head.appendChild(s); });
+  document.addEventListener('DOMContentLoaded', () => { const s = document.createElement('style'); s.textContent = '*, *::before, *::after { transition: none !important; animation: none !important; caret-color: transparent !important; }'; document.head.appendChild(s); });
   for (const C of [WebGLRenderingContext, WebGL2RenderingContext]) for (const k of ['drawArrays', 'drawElements', 'drawArraysInstanced', 'drawElementsInstanced']) {
     const orig = C.prototype[k]; if (!orig) continue;
     C.prototype[k] = function (...a) { if (window.__fast) return; return orig.apply(this, a); };

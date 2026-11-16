@@ -163,7 +163,7 @@ function impact(at, size) {
   crater(u * W, vv * H, 5 + size * 2, true); moonDirty = true; lastHit.copy(at); hasHit = true;
   newCraters++;
   const lines = ['Flash! Telescopes on Earth really see flashes like this when rocks hit the Moon',
-    'A brand new crater. That\'s how the Moon got all its craters', 'No air, so no dust cloud: the dust flies out in perfect arcs', 'No boom: space has no air to carry sound'];
+    'A brand new crater. That\'s how the Moon got all its craters', 'No air, so no dust cloud: the dust flies out in perfect arcs', 'No boom: space has no air to carry sound', 'A crater ends up 10 to 20 times wider than the rock that made it'];
   if (newCraters % 2) say(lines[((newCraters - 1) / 2) % lines.length], 3.4);
 }
 
