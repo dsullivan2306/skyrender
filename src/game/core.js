@@ -17,7 +17,7 @@ import { atmoMat, earth, earthMat, giant, moonMat, planetMats, smoke, smokeMat, 
 import { setMix, sfx } from '../audio/audio.js';
 import { ENV, S, airborne, box, c01, clamp01, ease, flyer, lerp, lerpJ, linked, rig, say, settled, sm, targetMode, wrap } from './state.js';
 import { buildPuffs, emitPuff, runPuffs, stackTop } from './puffs.js';
-import { runTractor } from './tractor.js';
+import { buildPlowLife, plowCaption, runPlowLife, runTractor } from './tractor.js';
 import { buildCrossing, crossingCaption, crossingView, runTrain } from './train.js';
 import { PLANE_LIFT, planeCaption, runHall, runPlane } from './plane.js';
 import { flyJr } from './jr.js';
@@ -95,7 +95,7 @@ function caption() {
   if (S.plan.to === 0) return planeCaption();
   if (S.plan.to === 3) return launchCaption();
   if (S.plan.to === 2) return S.trainT < 2.5 ? 'All aboard at Jasper Junction!' : !S.on.stop && crossingCaption() ? crossingCaption() : S.on.stop ? (S.trainSpeed > 0.5 ? 'Brakes on, slowing down' : 'Stopped on the tracks') : S.trainSpeed < 5 ? 'Departing the station' : 'Chugging down the tracks';
-  if (S.plan.to === 5) return S.tractorT < 1.5 ? 'Skyfly the tractor, ready for farm work!' : S.on.plow ? 'Skyfly plows the field for Jasper\'s farm' : S.tractorSpeed < 0.3 ? 'Skyfly is parked by the pasture' : 'Skyfly rolls down the farm lane past the animals';
+  if (S.plan.to === 5) return S.tractorT < 1.5 ? 'Skyfly the tractor, ready for farm work!' : S.on.plow ? (plowCaption() || 'Skyfly plows the field for Jasper\'s farm') : S.tractorSpeed < 0.3 ? 'Skyfly is parked by the pasture' : 'Skyfly rolls down the farm lane past the animals';
   if (S.plan.to === 4) return S.truckT < 1.5 ? 'Big rig mode. Buckle up!' : S.on.wreck ? 'Wrecked! Press Crash! again to rebuild' : S.jrPhase === 2 ? 'Skyrender Jr. flies loops around the big rig' : S.jrPhase === 4 ? 'Jr. lines up and lands back in the trailer' : (S.blend.inter || 0) > 0.5 ? 'Rolling down Interstate 65 toward Exit 5' : 'Hauling Skyrender freight down the country road';
   return 'Robot mode, passengers in the chest cockpit';
 }
@@ -306,7 +306,7 @@ function frame() {
     r.j.position.z += 0.2 * Math.sin(a) * kk;
   }
 
-  runTractor(dt, sdt, live);
+  runTractor(dt, sdt, live); runPlowLife(dt, sdt);
 
   linked.runTruck(dt, sdt, live);       // the big rig drives (truck/truck.js)
 
@@ -488,6 +488,7 @@ function frame() {
 function start() {
   buildCrossing();            // the railroad crossing (game/train.js), built last so everything before it is built as always
   buildDeluge();              // the launch pad's water cannons (game/rocket.js)
+  buildPlowLife();            // plowed rows and the birds that follow the plow (game/tractor.js)
   setButtons();
   frame();
 }
