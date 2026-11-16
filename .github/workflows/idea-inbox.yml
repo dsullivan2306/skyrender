@@ -1,0 +1,55 @@
+# Every hour, copies new locked ideas from Jasper (sent from the game through the ntfy.sh relay, which keeps
+# messages for 12 hours) into the idea-inbox branch, so none are ever lost. Ideas are locked in the game and stay
+# locked here: only the key on Dad's Mac can read them (tools/read-ideas.mjs). This never touches main or the site.
+name: Collect Jasper's ideas
+
+on:
+  schedule:
+    - cron: '23 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: idea-inbox
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Copy new locked ideas into the idea-inbox branch
+        run: |
+          TOPIC=$(sed -n 's/.*IDEA_TOPIC = "\([^"]*\)".*/\1/p' src/ideas/key.js)
+          [ -n "$TOPIC" ] || { echo "no topic in src/ideas/key.js"; exit 1; }
+          curl -fsS "https://ntfy.sh/$TOPIC/json?poll=1&since=all" > "$RUNNER_TEMP/relay.jsonl" || { echo "relay not reachable; trying again next hour"; exit 0; }
+          git config user.name "skyrender idea inbox"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code --heads origin idea-inbox >/dev/null; then
+            git checkout -q -B idea-inbox origin/idea-inbox
+          else
+            git checkout -q --orphan idea-inbox && git rm -rfq . && rm -rf src tests
+            printf 'Locked ideas from Jasper, collected every hour by .github/workflows/idea-inbox.yml on main.\nOnly the key on Dad'"'"'s Mac can read them (tools/read-ideas.mjs on main).\n' > README.md
+          fi
+          mkdir -p inbox
+          python3 - "$RUNNER_TEMP/relay.jsonl" <<'PY'
+          import json, os, sys
+          new = 0
+          for line in open(sys.argv[1]):
+              try: m = json.loads(line)
+              except ValueError: continue
+              if m.get('event') != 'message': continue
+              try: body = json.loads(m.get('message', ''))
+              except ValueError: continue
+              if not (isinstance(body, dict) and body.get('v') == 1 and all(k in body for k in ('k', 'iv', 'c'))): continue   # not a locked idea
+              path = os.path.join('inbox', m['id'] + '.json')
+              if os.path.exists(path): continue
+              json.dump({'relayId': m['id'], 'time': m['time'], 'locked': body}, open(path, 'w')); new += 1
+          print('new locked ideas:', new)
+          PY
+          git add README.md inbox
+          if git diff --cached --quiet; then echo "nothing new"; else git commit -qm "Collect locked ideas" && git push -q origin idea-inbox; fi

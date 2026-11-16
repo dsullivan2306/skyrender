@@ -1,0 +1,4 @@
+// The public half of the lock for Jasper's ideas. It can only lock (encrypt); the key that unlocks them
+// stays on Dad's Mac (~/.skyrender/idea-key.json) and is never in this project.
+export const IDEA_TOPIC = "skyrender-ideas-b972184c3936c27b436e1e31";              // the relay channel (ntfy.sh) ideas travel through
+export const IDEA_LOCK = {"kty":"RSA","n":"0Qv9r0GEOIfNiko34z-jWBV7HXAXBSgX3HIV1hA50ph8YFL_gejZ8Nbn6EqvASFAbJDGnR7YjoLLriBv8DCdxEprscmlwrI6-rzdHZ5HcsjYM6BMJGoP2zBctsoV0e-XpUowSZB667uS2jeY5Ekrz5kZ5ltax0Omg1fL8ubNd9yxTxIecW263Rnf3y58dPDhGy1gvqG2YkpvIHgnO8ehYr81kMQ4ozM0Q0Aug3ukMh3mNMIM5L9pbcJlP3hl0QBR1Y61DpjKAxJvvtDVj8JPyRC7ARrbgP6vjRTtCFqOn9tFLm-Gva4_ywmf1EGK0RS982LkgZVQd9eXCga6f9Q3inyrI3j3l-HL7mudKSQ6po5ebvz_sdjQfYYqFbsck-IMxBa_YNWAYH7hsuUARi-YKeuDk2OoPWR2PlOsOvMumPkEvhCM6CGsuusHg5HpgHEYfGCrL8k1PQiTWLE2ulloOiyYSZfV35u5CcvXI1Rgzse6Yi8q0rbVPLooPPdEqkoB","e":"AQAB","alg":"RSA-OAEP-256","ext":true};
