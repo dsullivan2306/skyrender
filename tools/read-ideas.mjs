@@ -31,7 +31,7 @@ try {
   for (const f of files) { try { locked.push(JSON.parse(execFileSync('git', ['show', 'FETCH_HEAD:' + f], { encoding: 'utf8' })).locked); } catch {} }
 } catch { console.error('(no idea-inbox branch yet)'); }
 const ideas = new Map(); let unreadable = 0;
-for (const b of locked) { try { const i = await unlock(b); if (i && i.id && i.words) ideas.set(i.id, i); } catch { unreadable++; } }
+for (const b of locked) { try { const i = await unlock(b); if (i && i.id && i.words && !i.words.startsWith('TEST from Claude')) ideas.set(i.id, i); } catch { unreadable++; } }   // Claude's own end-to-end checks are skipped
 const same = (a, b) => a.trim().toLowerCase().replace(/\s+/g, ' ') === b.trim().toLowerCase().replace(/\s+/g, ' ');
 const list = [...ideas.values()].sort((a, b) => String(a.when).localeCompare(String(b.when)))
   .map(i => ({ ...i, cameTrue: IDEAS.some(c => same(c.words, i.words)) }));
