@@ -18,7 +18,7 @@ import { setMix, sfx } from '../audio/audio.js';
 import { ENV, S, airborne, box, c01, clamp01, ease, flyer, lerp, lerpJ, linked, rig, say, settled, sm, targetMode, wrap } from './state.js';
 import { buildPuffs, emitPuff, runPuffs, stackTop } from './puffs.js';
 import { runTractor } from './tractor.js';
-import { runTrain } from './train.js';
+import { buildCrossing, crossingCaption, crossingView, runTrain } from './train.js';
 import { PLANE_LIFT, planeCaption, runHall, runPlane } from './plane.js';
 import { flyJr } from './jr.js';
 import { runRobot } from './robot.js';
@@ -94,7 +94,7 @@ function caption() {
   }
   if (S.plan.to === 0) return planeCaption();
   if (S.plan.to === 3) return launchCaption();
-  if (S.plan.to === 2) return S.trainT < 2.5 ? 'All aboard at Jasper Junction!' : S.on.stop ? (S.trainSpeed > 0.5 ? 'Brakes on, slowing down' : 'Stopped on the tracks') : S.trainSpeed < 5 ? 'Departing the station' : 'Chugging down the tracks';
+  if (S.plan.to === 2) return S.trainT < 2.5 ? 'All aboard at Jasper Junction!' : !S.on.stop && crossingCaption() ? crossingCaption() : S.on.stop ? (S.trainSpeed > 0.5 ? 'Brakes on, slowing down' : 'Stopped on the tracks') : S.trainSpeed < 5 ? 'Departing the station' : 'Chugging down the tracks';
   if (S.plan.to === 5) return S.tractorT < 1.5 ? 'Skyfly the tractor, ready for farm work!' : S.on.plow ? 'Skyfly plows the field for Jasper\'s farm' : S.tractorSpeed < 0.3 ? 'Skyfly is parked by the pasture' : 'Skyfly rolls down the farm lane past the animals';
   if (S.plan.to === 4) return S.truckT < 1.5 ? 'Big rig mode. Buckle up!' : S.on.wreck ? 'Wrecked! Press Crash! again to rebuild' : S.jrPhase === 2 ? 'Skyrender Jr. flies loops around the big rig' : S.jrPhase === 4 ? 'Jr. lines up and lands back in the trailer' : (S.blend.inter || 0) > 0.5 ? 'Rolling down Interstate 65 toward Exit 5' : 'Hauling Skyrender freight down the country road';
   return 'Robot mode, passengers in the chest cockpit';
@@ -447,16 +447,21 @@ function frame() {
   target3.lerp(center, 1 - Math.exp(-dt * 3));
   if (S.viewK > 0.001) { const vk = sm(S.viewK); target3.x += (0 - target3.x) * vk; target3.z += (hall.Z + hall.D * 0.4 - target3.z) * vk; target3.y += (1.5 - target3.y) * vk; }
   if (S.homeK > 0) { const dk = sm(S.homeK); target3.x += (0 - target3.x) * dk * 0.6; target3.z += (home.GZ - 2 - target3.z) * dk * 0.6; target3.y += (5 - target3.y) * dk * 0.5; }
+  const xv = crossingView(), xk = sm(xv.k);              // at the railroad crossing, look a little ahead to the gates
+  if (xk > 0.001) { target3.z += (center.z + Math.max(-4, Math.min(16, xv.z)) * 0.55 - target3.z) * xk * 0.5; target3.x += (center.x + 1.5 - target3.x) * xk * 0.5; }
   if (sp > 0 || air > 0) target3.y = center.y;
   // Pull back for tall poses (the rocket on the pad) so the whole toy stays in frame
   const tallest = box.max.y - box.min.y;
   const span = Math.max(box.max.x - box.min.x, box.max.z - box.min.z);
   const want = Math.max(1, 0.7 * tallest / Math.tan(camera.fov * Math.PI / 360) / 17, span / 11, 1 + 1.0 * sm(S.homeK)) * (1 - sm(S.viewK)) + 1.7 * sm(S.viewK);
-  fitScale += (want - fitScale) * (1 - Math.exp(-dt * 2));
+  fitScale += (want * (1 + 0.25 * xk) - fitScale) * (1 - Math.exp(-dt * 2));
   idle += dt;
   if (!dragging && idle > 2 && !reduceMotion && S.homeK < 0.01) {
     if (settled() && S.plan.to === 0 && sp > 0.5) {   // in space, the plane turns so the huge Moon is right behind it
       const d = ((0.6 - theta) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI; theta += d * Math.min(1, dt * 0.5);
+    } else if (settled() && xk > 0.05) {               // at the crossing, a front three-quarter view from the car's side
+      const d = ((0.45 - theta) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI; theta += d * Math.min(1, dt * 0.7) * xk;
+      phi += (1.0 - phi) * Math.min(1, dt * 0.7) * xk;
     } else if (settled()) theta += dt * (0.1 - 0.06 * S.viewK);
     else {                                             // while it transforms, face the action: front three-quarter, trailer side for the big rig
       const want = S.plan.to === 4 ? 2.2 : 0.9, d = ((want - theta) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI;
@@ -481,6 +486,7 @@ function frame() {
 }
 // Start the toy: called by main.js once every module is built and linked.
 function start() {
+  buildCrossing();            // the railroad crossing (game/train.js), built last so everything before it is built as always
   setButtons();
   frame();
 }

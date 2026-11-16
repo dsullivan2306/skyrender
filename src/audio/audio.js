@@ -95,6 +95,8 @@ const sfx = {
   whistle: (pattern = 'LLSL') => play(t => { let o = 0; for (const c of pattern) o += blast(t + o, c === 'L'); }),
   // a steam engine puffs four times per wheel turn; the first of the four is the strongest
   chuff: v => play(t => { const acc = beat++ % 4 === 0; noise(t, acc ? 0.24 : 0.18, 400 + arnd() * 250, 0.1 * v * (acc ? 1.25 : 0.8), 'lowpass'); }),
+  // the crossing bell: a bright ding with a ring above it, over and over while the lights flash
+  xingBell: () => play(t => { tone(1320, t, 0.32, 'triangle', 0.03); tone(2640, t, 0.18, 'sine', 0.01); }),
   clack: () => play(t => { noise(t, 0.03, 3000, 0.05, 'highpass'); noise(t + 0.11, 0.03, 2800, 0.045, 'highpass'); }),   // wheels over a rail joint
   // the radio beep astronauts hear before someone speaks (the real one is 2,525 hertz)
   quindar: () => play(t => tone(2525, t, 0.25, 'sine', 0.03)),
