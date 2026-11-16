@@ -1,6 +1,7 @@
 // Deeper worlds: true details that grow out of what each mode already does.
 // Rocket: water cannons flood the pad before ignition; the white cloud is mostly steam.
 // Tractor: the plow leaves dark rows of fresh dirt, and birds follow it to find worms.
+// Plane: red light on the left wing, green on the right. Robot: big legs swing slow, small ones fast.
 // Train: the railroad crossing between stations: lights, bell, gates, the crossing whistle, a car that waits.
 export default async ({ page, step, shot, click, act, drag }) => {
   const cap = () => page.$eval('#step', e => e.textContent);
@@ -31,4 +32,14 @@ export default async ({ page, step, shot, click, act, drag }) => {
   let p = await page.evaluate(() => window.__plow); must(p.rows > 5 && p.birds === 1, 'plowed rows behind, birds down in them', p);
   await drag(150, 60); await step(2); await shot('w-farm-1');
   await act('Plow'); await step(60); p = await page.evaluate(() => window.__plow); must(p.birds === 0, 'plow up: the birds fly off', p);
+  // the plane: wing lights, red on the left and green on the right
+  await click(0); await step(420); await act('Flash lights'); await step(2);
+  let c = await cap(); must(c.startsWith('Red light on the left wing'), 'the wing lights explained', c);
+  // the robot: marching GIANT is slow, tiny is quick, and the caption says why
+  await click(1); await step(420); await act('March'); await act('Big'); await step(60);
+  c = await cap(); must(c.startsWith('GIANT legs swing slowly'), 'giant pendulum legs', c);
+  await act('Small'); await step(60); c = await cap(); must(c.startsWith('Tiny legs swing fast'), 'tiny pendulum legs', c);
+  // the big rig: the air horn, and the arm pump
+  await click(4); await step(420); await act('Air horn'); await step(2);
+  c = await cap(); must(c.includes('Pump your arm'), 'the arm pump', c);
 };

@@ -97,6 +97,8 @@ function caption() {
   if (S.plan.to === 2) return S.trainT < 2.5 ? 'All aboard at Jasper Junction!' : !S.on.stop && crossingCaption() ? crossingCaption() : S.on.stop ? (S.trainSpeed > 0.5 ? 'Brakes on, slowing down' : 'Stopped on the tracks') : S.trainSpeed < 5 ? 'Departing the station' : 'Chugging down the tracks';
   if (S.plan.to === 5) return S.tractorT < 1.5 ? 'Skyfly the tractor, ready for farm work!' : S.on.plow ? (plowCaption() || 'Skyfly plows the field for Jasper\'s farm') : S.tractorSpeed < 0.3 ? 'Skyfly is parked by the pasture' : 'Skyfly rolls down the farm lane past the animals';
   if (S.plan.to === 4) return S.truckT < 1.5 ? 'Big rig mode. Buckle up!' : S.on.wreck ? 'Wrecked! Press Crash! again to rebuild' : S.jrPhase === 2 ? 'Skyrender Jr. flies loops around the big rig' : S.jrPhase === 4 ? 'Jr. lines up and lands back in the trailer' : (S.blend.inter || 0) > 0.5 ? 'Rolling down Interstate 65 toward Exit 5' : 'Hauling Skyrender freight down the country road';
+  if (S.on.march && S.on.size === 'big') return 'GIANT legs swing slowly, like a long pendulum';     // the robot's steps really do follow pendulum timing (game/robot.js)
+  if (S.on.march && S.on.size === 'small') return 'Tiny legs swing fast, like a short pendulum';
   return 'Robot mode, passengers in the chest cockpit';
 }
 
@@ -167,6 +169,7 @@ function doAction(a, b) {
   const snd = BTN_SFX[a.id]; if (snd === 'switch') sfx.switchOn(!!S.on[a.id]); else if (snd) sfx[snd]();
   if (a.id === 'stop' && S.on.stop && (S.plan.to === 4 || S.plan.to === 2)) sfx.airBrake(S.plan.to === 2);   // air brakes hiss; the train lets off steam
   if (a.id === 'whistle') { for (const ms of [0, 1080, 2160, 2640]) setTimeout(() => emitPuff(true), ms); say('Long, long, short, long: crossing ahead!', 3); sfx.whistle('LLSL'); }
+  if (a.id === 'lights' && S.plan.to === 0) say(S.on.lights ? 'Red light on the left wing, green on the right, so other pilots can tell which way you fly' : 'Lights off', S.on.lights ? 4.2 : 1.4);
   if (a.id === 'peek') say(S.on.peek ? 'Peeking inside Jasper Junction Airport' : 'Back out to the runway', 2);
   if (a.id === 'goin') { say(S.on.goin ? 'Skyrender rolls into the airport through the big glass doors' : 'Skyrender rolls back out to the runway', 2.4); if ((S.on.goin || S.on.peek) && S.planeT > 0) { S.pending = 0; setButtons(); } }
   if (a.id === 'peek' && S.on.peek && S.planeT > 0) { S.pending = 0; setButtons(); }
@@ -180,7 +183,7 @@ function doAction(a, b) {
   if (a.id === 'plow' && S.plan.to === 5) say(S.on.plow ? 'Plow down! Digging nice straight rows' : 'Plow up', 1.8);
   if (a.id === 'spray') say(S.on.spray ? 'Sprayer booms on. Watering the crops!' : 'Sprayer off', 1.8);
   if (a.id === 'cab') say(S.on.cab ? 'Cab doors open. Hi, farmer!' : 'Cab doors shut', 1.6);
-  if (a.id === 'horn') { S.hop = 0.6; say('HONK HONK!'); sfx.airhorn(); }
+  if (a.id === 'horn') { S.hop = 0.6; say('HONK HONK! Pump your arm at a big rig, and the driver may honk back', 3.4); sfx.airhorn(); }
   if (a.id === 'wreck') {
     if (S.on.wreck) {
       if ((S.blend.wreck || 0) < 0.05 && !S.crash) linked.startCrash();

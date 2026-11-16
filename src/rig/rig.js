@@ -576,7 +576,7 @@ function buildRig(THREE, tex) {
       say: { plane: s > 0 ? 'Winglets flip up' : null, rocket: s > 0 ? 'Winglets flip up' : null }, stowSay: s > 0 ? 'Winglets fold flat' : null
     });
     wl.add(box(0.05, 0.5, 0.4, M.livery, 0, 0.25, 0));
-    const nav = box(0.07, 0.07, 0.07, s > 0 ? M.navG : M.navR, 0, 0.02, 0.22); wl.add(nav); navLights.push(nav);
+    const nav = box(0.07, 0.07, 0.07, s > 0 ? M.navR : M.navG, 0, 0.02, 0.22);   // red on the left wing, green on the right, like every real plane wl.add(nav); navLights.push(nav);
 
     // Engine: rides the wing, swivels to keep pointing the right way in every mode
     const e = J(w, [s * 1.1, -0.35, 0.35], {
@@ -798,7 +798,7 @@ function buildRig(THREE, tex) {
       w.add(new THREE.Mesh(wingGeo(s, 0.5, 0.3, 0.1, 0.26, 0.02), M.white));
       const eng = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.04, 0.2, 12).rotateX(H), M.white); eng.position.set(s * 0.2, -0.05, -0.02); w.add(eng);
       const eg = new THREE.Mesh(new THREE.CircleGeometry(0.035, 12), M.glow); eg.position.set(s * 0.2, -0.05, -0.121); eg.rotation.y = PI; w.add(eg); jr.glow.push(eg);
-      w.add(box(0.03, 0.03, 0.03, s > 0 ? M.navG : M.navR, s * 0.5, 0.01, -0.12));
+      w.add(box(0.03, 0.03, 0.03, s > 0 ? M.navR : M.navG, s * 0.5, 0.01, -0.12));
       w.rotation.y = s * H * 0.92;                                                           // folded back along the body
       jr.wings.push({ g: w, s });
     }
