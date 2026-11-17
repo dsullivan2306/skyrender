@@ -43,7 +43,7 @@ rig.jr.j.traverse(o => { if (o.isMesh) skipBox.add(o); });      // Jr. flies off
 // Fun toggles for each mode. 'toggle' buttons stay on or off; 'press' buttons do something once.
 const ACTIONS = [
   [{ id: 'visit', label: 'Go to a planet', seg: [['mercury', 'Mercury'], ['venus', 'Venus'], ['earth', 'Earth'], ['mars', 'Mars'], ['jupiter', 'Jupiter'], ['saturn', 'Saturn'], ['uranus', 'Uranus'], ['neptune', 'Neptune']] },
-    { id: 'land', label: 'Land', press: true }, { id: 'door', label: 'Open door' }, { id: 'gear', label: 'Gear up' }, { id: 'lights', label: 'Flash lights' }, { id: 'peek', label: 'See inside airport' }, { id: 'goin', label: 'Go inside airport' }, { id: 'board', label: 'Board the plane', press: true }, { id: 'space', label: 'Fly to space' }, { id: 'meteors', label: 'Meteors', press: true }, { id: 'astro', label: 'Astronauts' }],
+    { id: 'land', label: 'Land', press: true }, { id: 'door', label: 'Open door' }, { id: 'gear', label: 'Gear up' }, { id: 'lights', label: 'Flash lights' }, { id: 'peek', label: 'See inside airport' }, { id: 'goin', label: 'Go inside airport' }, { id: 'board', label: 'Board the plane', press: true }, { id: 'space', label: 'Fly to space' }, { id: 'meteors', label: 'Meteors', press: true }, { id: 'astro', label: 'Astronauts' }, { id: 'rover', label: 'Rover' }],
   [{ id: 'size', seg: [['small', 'Small'], ['medium', 'Medium'], ['big', 'Big']] }, { id: 'wave', label: 'Wave' }, { id: 'march', label: 'March' }, { id: 'mask', label: 'Mask off' }, { id: 'hatch', label: 'Close hatch' }],
   [{ id: 'whistle', label: 'Whistle', press: true }, { id: 'stop', label: 'Stop train' }, { id: 'lamp', label: 'Lamp off' }],
   [{ id: 'arm', label: 'Swing arm away' }, { id: 'launch', label: 'Launch now', press: true }],
@@ -52,7 +52,7 @@ const ACTIONS = [
 ];
 
 const center = new THREE.Vector3();
-const target3 = new THREE.Vector3(0, 1.2, 0);
+const target3 = new THREE.Vector3(0, 1.2, 0), _goal3 = new THREE.Vector3();
 
 
 function startMorph(m) {
@@ -155,7 +155,7 @@ function showActions(sp) {
   const ground = pu.landed || pu.busy;               // on Mars, or on the way down or up
   for (const b of actsEl.querySelectorAll('[data-id]')) {
     const id = b.dataset.id;
-    b.hidden = ((id === 'meteors') && (!space || pu.at !== 'earth' || ground || pu.to)) || ((id === 'astro') && !space && !pu.landed) ||
+    b.hidden = ((id === 'meteors') && (!space || pu.at !== 'earth' || ground || pu.to)) || ((id === 'astro') && !space && !pu.landed) || (id === 'rover' && !pu.landed) ||
       ((id === 'peek' || id === 'goin' || id === 'board') && high) || (id === 'visit' && (!space || ground)) ||
       (id === 'land' && !(space && pu.canLand) && !pu.landed) || (id === 'space' && ground) || ((id === 'door' || id === 'gear') && space && !pu.landed);   // in space the astronauts open the door themselves
     if (id === 'land') b.textContent = pu.landed ? 'Take off' : pu.at === 'mars' ? 'Land on Mars' : 'Land at home';
@@ -185,6 +185,7 @@ function doAction(a, b) {
   if (a.id === 'board') requestPark();
   if (a.id === 'space' || a.id === 'meteors' || (a.id === 'astro' && !linked.planetUI().landed)) linked.moonAction(a.id);
   if (a.id === 'astro' && linked.planetUI().landed) say(S.on.astro ? 'The astronauts hop down onto Mars' : 'Astronauts, back inside!', 2.4);
+  if (a.id === 'rover') say(S.on.rover ? 'The rover wakes up! It lives on Mars and drives all by itself' : 'The rover stops and watches', 2.4);
   if (a.id === 'land') linked.landAction();
   if (a.id === 'honk') { S.hop = 1; say('Beep beep!'); sfx.honk(); }
   if (a.id === 'moo') {                              // each press, the next animal speaks up and hops
@@ -461,7 +462,9 @@ function frame() {
   const text = caption();
   if (stepLabel.textContent !== text) { stepLabel.textContent = text; if (!settled() && S.pending === null) sfx.click(); }
 
-  target3.lerp(center, 1 - Math.exp(-dt * 3));
+  const goal3 = _goal3.copy(center), mvr = linked.marsView(), rk = mvr.on ? sm(mvr.rk) : 0;   // on Mars, lean toward the rover while it works
+  if (rk > 0) { goal3.x += (mvr.rx - goal3.x) * rk * mvr.follow; goal3.z += (mvr.rz - goal3.z) * rk * mvr.follow; }
+  target3.lerp(goal3, 1 - Math.exp(-dt * 3));
   if (S.viewK > 0.001) { const vk = sm(S.viewK); target3.x += (0 - target3.x) * vk; target3.z += (hall.Z + hall.D * 0.4 - target3.z) * vk; target3.y += (1.5 - target3.y) * vk; }
   if (S.homeK > 0) { const dk = sm(S.homeK); target3.x += (0 - target3.x) * dk * 0.6; target3.z += (home.GZ - 2 - target3.z) * dk * 0.6; target3.y += (5 - target3.y) * dk * 0.5; }
   const xv = crossingView(), xk = sm(xv.k);              // at the railroad crossing, look a little ahead to the gates
@@ -471,7 +474,7 @@ function frame() {
   const tallest = box.max.y - box.min.y;
   const span = Math.max(box.max.x - box.min.x, box.max.z - box.min.z);
   const want = Math.max(1, 0.7 * tallest / Math.tan(camera.fov * Math.PI / 360) / 17, span / 11, 1 + 1.0 * sm(S.homeK)) * (1 - sm(S.viewK)) + 1.7 * sm(S.viewK);
-  fitScale += (want * (1 + 0.25 * xk) - fitScale) * (1 - Math.exp(-dt * 2));
+  fitScale += (want * (1 + 0.25 * xk + 0.15 * rk) - fitScale) * (1 - Math.exp(-dt * 2));
   idle += dt;
   if (!dragging && idle > 2 && !reduceMotion && S.homeK < 0.01) {
     if (settled() && S.plan.to === 0 && sp > 0.5) {   // in space, the plane turns so the huge Moon is right behind it

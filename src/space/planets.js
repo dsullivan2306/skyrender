@@ -16,6 +16,7 @@ import { atmo, atmoMat, canvasTex, earth, earthMat, giant, planetMats, redPlanet
 import { S, c01, ease, flyer, rig, say, sm } from '../game/state.js';
 import { sfx } from '../audio/audio.js';
 import { ASTRO_SCALE, makeAstronaut } from './moontrip.js';
+import { makeRover, roverCaption, runRover } from './rover.js';
 
 let ps = 0x9a17;                                   // its own random numbers, so nothing else's randomness changes
 const prnd = () => { ps = (ps + 0x6D2B79F5) | 0; let x = Math.imul(ps ^ (ps >>> 15), 1 | ps); x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x; return ((x ^ (x >>> 14)) >>> 0) / 4294967296; };
@@ -31,13 +32,13 @@ const PLANETS = [
   { id: 'mercury', name: 'Mercury', r: 1.6, az: 214, el: -9.8, atmo: [0, 0],
     trip: 'A real spaceship took almost 7 years to get here',
     arrive: 'Mercury! The planet closest to the Sun',
-    facts: ['Mercury has almost no air, so its sky is black even in the daytime', 'A year on Mercury is only 88 days long', 'Mercury is covered in craters, a lot like our Moon', 'Mercury has no moons at all'],
+    facts: ['Mercury has almost no air, so its sky is black even in the daytime', 'A year on Mercury is only 88 days long', 'Mercury is covered in craters, a lot like our Moon', 'Mercury has no moons at all', 'No rover has been to Mercury. In the daytime it gets hot enough to melt metal'],
     scope: 'Through the telescope: Mercury\'s craters, baked by the Sun',
     draw: (g, w, h) => { g.fillStyle = '#8f8a84'; g.fillRect(0, 0, w, h); spots(g, w, h, 90, 3, 16, ['rgba(70,66,62,0.45)', 'rgba(190,185,178,0.35)'], 5); } },
   { id: 'venus', name: 'Venus', r: 3.2, az: 220, el: -10.2, atmo: [0xf3d58a, 1.6],
     trip: 'A real spaceship takes about 5 months to get here',
     arrive: 'Venus! Wrapped in thick yellow clouds',
-    facts: ['Venus is the hottest planet, hotter than a pizza oven', 'Thick clouds hide the ground on Venus all the time', 'Venus spins backward, so the Sun rises in the west there', 'Venus has no moons at all'],
+    facts: ['Venus is the hottest planet, hotter than a pizza oven', 'Thick clouds hide the ground on Venus all the time', 'Venus spins backward, so the Sun rises in the west there', 'Venus has no moons at all', 'No rover has driven on Venus. Landers there lasted two hours at most before the heat stopped them'],
     scope: 'Through the telescope: the cloud tops of Venus. Nobody can see the ground',
     draw: (g, w, h) => { g.fillStyle = '#e6cf98'; g.fillRect(0, 0, w, h); bandsOf(g, w, h, ['rgba(214,182,112,0.35)', 'rgba(244,228,186,0.4)', 'rgba(205,170,100,0.25)'], 21);
       g.globalAlpha = 0.25; spots(g, w, h, 24, 20, 60, ['#f6e9c4', '#cfae6c'], 8); g.globalAlpha = 1; } },
@@ -50,7 +51,7 @@ const PLANETS = [
   { id: 'mars', name: 'Mars', r: 2.2, az: 232, el: -11, atmo: [0xe8a07a, 0.5], land: true,
     trip: 'A real spaceship takes about 7 months to get here',
     arrive: 'Mars, the red planet! Tap Land to go down',
-    facts: ['Mars is red because its dust is full of rust', 'Mars has the tallest volcano we know of, about two and a half times taller than Mount Everest', 'Mars has two tiny moons, Phobos and Deimos', 'A day on Mars is just 37 minutes longer than a day on Earth', 'The white spots at the top and bottom are ice caps'],
+    facts: ['Mars is red because its dust is full of rust', 'Mars has the tallest volcano we know of, about two and a half times taller than Mount Everest', 'Mars has two tiny moons, Phobos and Deimos', 'A day on Mars is just 37 minutes longer than a day on Earth', 'The white spots at the top and bottom are ice caps', 'Rovers have been driving on Mars since 1997. Land, then tap Rover to meet one'],
     scope: 'Through the telescope: the dark line is a canyon as long as America is wide',
     draw: (g, w, h) => { g.fillStyle = '#b5543a'; g.fillRect(0, 0, w, h); spots(g, w, h, 160, 2, 9, ['rgba(120,48,30,0.35)', 'rgba(214,128,92,0.3)', 'rgba(150,70,44,0.3)'], 9);
       spots(g, w, h, 8, 30, 60, ['rgba(110,44,28,0.22)'], 13);
@@ -60,7 +61,7 @@ const PLANETS = [
   { id: 'jupiter', name: 'Jupiter', r: 7.5, az: 240, el: -11.4, atmo: [0xe8d6b0, 0.6],
     trip: 'A real spaceship took about 5 years to get here',
     arrive: 'Jupiter, the biggest planet of all',
-    facts: ['More than 1,000 Earths could fit inside Jupiter', 'The Great Red Spot is a storm bigger than the whole Earth', 'Jupiter is made of gas. There\'s no ground to land on', 'Jupiter\'s four big moons are Io, Europa, Ganymede and Callisto'],
+    facts: ['More than 1,000 Earths could fit inside Jupiter', 'The Great Red Spot is a storm bigger than the whole Earth', 'Jupiter is made of gas. There\'s no ground to land on', 'Jupiter\'s four big moons are Io, Europa, Ganymede and Callisto', 'No rover could drive on Jupiter. There are just clouds that get thicker and thicker'],
     scope: 'Through the telescope: Jupiter\'s stripes are bands of clouds racing around',
     draw: (g, w, h) => { bandsOf(g, w, h, ['#e8dcc4', '#c9a57a', '#efe6d2', '#b98a5e', '#e3d3b4', '#a8734a', '#efe2c8', '#c49c74'], 33);
       g.fillStyle = '#c0603e'; g.beginPath(); g.ellipse(w * 0.62, h * 0.62, w * 0.055, h * 0.05, 0, 0, Math.PI * 2); g.fill();
@@ -68,19 +69,19 @@ const PLANETS = [
   { id: 'saturn', name: 'Saturn', r: 6.3, az: 249, el: -11.8, atmo: [0xeedcae, 0.6],
     trip: 'A real spaceship took about 7 years to get here',
     arrive: 'Saturn and its giant rings!',
-    facts: ['Saturn\'s rings are billions of chunks of ice and rock', 'Saturn is so light for its size, it would float in a giant bathtub', 'Saturn is made of gas, so there\'s no ground to land on', 'Saturn\'s biggest moon, Titan, has orange haze for a sky'],
+    facts: ['Saturn\'s rings are billions of chunks of ice and rock', 'Saturn is so light for its size, it would float in a giant bathtub', 'Saturn is made of gas, so there\'s no ground to land on', 'Saturn\'s biggest moon, Titan, has orange haze for a sky', 'A rover would sink into Saturn. But a flying robot is going to visit Titan'],
     scope: 'Through the telescope: the rings, made of ice chunks as small as sand and as big as a house',
     draw: (g, w, h) => bandsOf(g, w, h, ['#e3cf9e', '#d6bb83', '#ead9ad', '#c9a86f', '#efe0b8', '#d2b47c'], 3) },
   { id: 'uranus', name: 'Uranus', r: 4.3, az: 257, el: -12.2, atmo: [0x9fe6ea, 0.8],
     trip: 'A real spaceship took eight and a half years to get here',
     arrive: 'Uranus, the planet tipped over on its side',
-    facts: ['Uranus spins tipped on its side, like a ball rolling along', 'Uranus is blue-green because of a gas called methane', 'Uranus is so cold, its clouds are made of ice'],
+    facts: ['Uranus spins tipped on its side, like a ball rolling along', 'Uranus is blue-green because of a gas called methane', 'Uranus is so cold, its clouds are made of ice', 'Only one spaceship has ever visited Uranus, and it just flew past'],
     scope: 'Through the telescope: smooth blue-green clouds, colder than any freezer',
     draw: (g, w, h) => { g.fillStyle = '#a6d9dc'; g.fillRect(0, 0, w, h); bandsOf(g, w, h, ['rgba(255,255,255,0.06)', 'rgba(60,140,150,0.07)', 'rgba(0,0,0,0)'], 44); } },
   { id: 'neptune', name: 'Neptune', r: 4.1, az: 264, el: -12.6, atmo: [0x5d86ff, 0.8],
     trip: 'A real spaceship took 12 years to get here',
     arrive: 'Neptune, the planet farthest from the Sun',
-    facts: ['Neptune has the fastest winds of any planet', 'One year on Neptune lasts 165 Earth years', 'Neptune\'s big moon Triton goes around it backward'],
+    facts: ['Neptune has the fastest winds of any planet', 'One year on Neptune lasts 165 Earth years', 'Neptune\'s big moon Triton goes around it backward', 'Only one spaceship has ever visited Neptune, and it just flew past'],
     scope: 'Through the telescope: a dark storm and fast white clouds',
     draw: (g, w, h) => { g.fillStyle = '#3d64c8'; g.fillRect(0, 0, w, h); bandsOf(g, w, h, ['rgba(30,50,140,0.25)', 'rgba(120,160,240,0.15)', 'rgba(0,0,0,0)'], 55);
       g.fillStyle = '#233c86'; g.beginPath(); g.ellipse(w * 0.4, h * 0.6, w * 0.05, h * 0.04, 0, 0, Math.PI * 2); g.fill();
@@ -297,6 +298,11 @@ function runWalkers(dt, want) {
   return out;
 }
 
+// ---------- the rover: it already lives on Mars (Jasper's next idea, space/rover.js) ----------
+const rover = makeRover(mars.scene, glowTex);
+const watchAt = new THREE.Vector3();
+let roverK = 0;                                     // the camera leans toward the rover while it works
+
 // ---------- flying between planets, landing, and the buttons ----------
 const TRAVEL = 4.6;
 let at = 'earth', to = null, travelT = 0, arrivedT = 0, factClock = 0, waitAstro = false;
@@ -318,7 +324,7 @@ function goPlanet(id) {
 }
 function landAction() {
   if (to) return;
-  if (mars.active && mars.phase === 'ground') { mars.phase = 'up'; mars.t = 0; S.on.astro = false; markOff('Astronauts'); return; }
+  if (mars.active && mars.phase === 'ground') { mars.phase = 'up'; mars.t = 0; S.on.astro = false; markOff('Astronauts'); S.on.rover = false; markOff('Rover'); return; }
   if (at === 'earth') { S.on.space = false; markOff('Fly to space'); say('Down we go, home to Jasper Junction', 2.6); return; }
   if (at === 'mars' && !mars.phase) {
     if (S.astroK > 0.02 || S.on.astro) { S.on.astro = false; markOff('Astronauts'); waitAstro = true; say('Astronauts, back inside! Then down to Mars', 2.6); }
@@ -339,7 +345,7 @@ function runPlanets(dt, sp) {
   // anything that means "go home" (Fly to space off, or a new mode picked) takes Skyrender back to Earth first
   const wantHome = S.plan.to !== 0 || !S.on.space || S.pending !== null;
   if (wantHome && !to) {
-    if (mars.active && mars.phase === 'ground') { mars.phase = 'up'; mars.t = 0; }
+    if (mars.active && mars.phase === 'ground') { mars.phase = 'up'; mars.t = 0; S.on.rover = false; markOff('Rover'); }
     else if (!mars.phase && at !== 'earth' && sp > 0.5) { to = 'earth'; travelT = 0; }
   }
   // flying between planets: the one you leave falls back into the row (Earth drops away below), the stars slide
@@ -400,8 +406,15 @@ function runPlanets(dt, sp) {
     if (d.life <= 0) d.m.visible = false;
   }
   const out = mars.active ? runWalkers(dt, S.on.astro && mars.phase === 'ground') : 0;
+  if (mars.active) {                                // the rover watches Skyrender land, then the astronauts
+    const w = walkers.find(w2 => w2.mode !== 'in');
+    if (w) watchAt.copy(w.pos).setY(1); else watchAt.set(0, mars.y + 1.2, 0);
+    runRover(rover, dt, !!S.on.rover && mars.phase === 'ground', watchAt);
+  }
+  roverK += ((mars.active && S.on.rover && mars.phase === 'ground' ? 1 : 0) - roverK) * Math.min(1, dt * 0.8);
   window.__planets = { at, to, travel: travelT, mars: mars.phase || (mars.active ? 'ground' : null), onMars: mars.active, walkersOut: out,
-    working: walkers.filter(w => w.mode === 'work').length };
+    working: walkers.filter(w => w.mode === 'work').length,
+    rover: { mode: rover.mode, stop: rover.stop, zaps: rover.zaps, spark: rover.spark.material.opacity, tubes: rover.tubes, tracks: rover.laid, arm: rover.armK } };
 }
 
 // The caption while traveling, at another planet, or on Mars (empty: the plane's own caption shows)
@@ -413,6 +426,7 @@ function planetCaption() {
   if (mars.phase === 'down') return waitAstro ? '' : mars.t < 1.4 ? 'Landing on Mars!' : 'Down through the thin Mars air. Rockets slow Skyrender down';
   if (mars.phase === 'up') return walkers.some(w => w.mode !== 'in') ? 'Astronauts, back inside! Then up we go' : 'Rockets on! Back up to space';
   if (mars.active) {
+    if (S.on.rover) { const c = roverCaption(rover); if (c) return c; }
     const k = Math.floor(mars.landedT / 6);
     if (walkers.some(w => w.mode !== 'in')) return k % 2 ? MARS_WALK[(k >> 1) % MARS_WALK.length] : BY.mars.facts[(k >> 1) % BY.mars.facts.length];
     return mars.landedT < 3 ? 'Touchdown on Mars!' : MARS_GROUND[k % MARS_GROUND.length];
@@ -426,7 +440,7 @@ function planetCaption() {
 }
 // What the buttons should show: in space, the planet row; Land at Earth and Mars, Take off on Mars
 const planetUI = () => ({ at, to, landed: mars.active && mars.phase === 'ground', busy: !!mars.phase && mars.phase !== 'ground', canLand: !to && !mars.phase && (at === 'earth' || at === 'mars') });
-const marsView = () => ({ on: mars.active, y: mars.y, scene: mars.scene });
+const marsView = () => ({ on: mars.active, y: mars.y, scene: mars.scene, rk: roverK, rx: rover.pos.x, rz: rover.pos.z, follow: walkers.some(w => w.mode !== 'in') ? 0.3 : 0.5 });
 
 wear('earth');
 export { PLANETS, goPlanet, landAction, marsView, planetCaption, planetUI, runPlanets };

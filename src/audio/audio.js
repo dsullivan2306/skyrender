@@ -104,6 +104,11 @@ const sfx = {
   lock: () => play(t => { tone(140, t, 0.09, 'triangle', 0.09, 90); noise(t, 0.04, 1800, 0.05, 'highpass'); }),       // parts meeting and locking
   whirr: dur => play(t => tone(110, t, dur, 'sawtooth', 0.025, 360)),
   // the rainbirds open: a rush of water across the pad
+  // the Mars rover: its laser makes a row of tiny snaps on a rock (a real rover's microphone recorded them),
+  // its drill buzzes, and its wheel motors hum as it sets off
+  zap: () => play(t => { for (let i = 0; i < 8; i++) noise(t + i * 0.16, 0.012, 3400, 0.05, 'highpass'); }),
+  drill: () => play(t => { tone(180, t, 2.6, 'square', 0.012, 200); noise(t, 2.6, 1400, 0.02, 'bandpass'); }),
+  roverGo: () => play(t => tone(420, t, 0.6, 'sine', 0.02, 640)),
   deluge: () => play(t => { noise(t, 6, 900, 0.05, 'bandpass'); noise(t, 6, 2600, 0.02, 'highpass'); }),
   beep: hi => play(t => tone(hi ? 1046 : 784, t, hi ? 0.4 : 0.12, 'sine', 0.07)),
   size: up => play(t => { tone(up ? 90 : 520, t, 0.9, 'sawtooth', 0.05, up ? 420 : 110); tone(up ? 180 : 1040, t, 0.9, 'sine', 0.06, up ? 840 : 220); }),
