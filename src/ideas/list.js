@@ -10,4 +10,6 @@ export const IDEAS = [
     when: '2026-11-16', what: 'All eight planets in space. Fly to any of them, study them, and land on Mars with the astronauts' },
   { words: 'Jasper wants rovers on the planets',
     when: '2026-11-17', what: 'A rover lives on Mars. Land there and tap Rover: it zaps rocks, drills, and visits an old rover' },
+  { words: 'Skyfly turns into a rover on mars there\u2019s a button on mars to make him turn into the rover and you can go on the moon',
+    when: '2026-11-17', what: 'Land on the Moon, and on Mars or the Moon tap Skyfly rover: Skyrender turns into Skyfly and drives around' },
 ];

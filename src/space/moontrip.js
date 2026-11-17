@@ -306,7 +306,7 @@ function placeTether(c, from, to, t) {
 function runMoonTrip(dt, sp) {
   lastSp = sp; clock += dt;
   moonWait -= dt; if (moonDirty && moonWait <= 0) { moonTex.needsUpdate = moonBump.needsUpdate = true; moonDirty = false; moonWait = 0.25; }
-  trip.visible = sp > 0.001 && !S.onMars;
+  trip.visible = sp > 0.001 && !S.onGround;
   bigMoonMat.opacity = sp * (S.homeMoonK ?? 1);              // our Moon stays behind when Skyrender visits other planets (space/planets.js)
   bigMoon.visible = bigMoonMat.opacity > 0.002;
   // meteors: speeding up as the Moon pulls them in, shedding grains
@@ -337,7 +337,7 @@ function runMoonTrip(dt, sp) {
     f.s.material.opacity = f.t < 0.12 ? f.t / 0.12 : 1 - (f.t - 0.12) / 0.88; f.s.scale.setScalar(f.size * (0.6 + 0.6 * f.t)); f.s.visible = f.t < 1 && trip.visible;
   }
   // astronauts: out only in space, back in before the plane comes down
-  const want = S.on.astro && S.on.space && inSpace(sp) && !S.onMars ? 1 : 0;   // on Mars they walk instead (space/planets.js)
+  const want = S.on.astro && S.on.space && inSpace(sp) && !S.onGround ? 1 : 0;   // on Mars or the Moon's ground they walk instead (space/planets.js)
   S.astroK += (want - S.astroK) * Math.min(1, dt * 0.45);
   if (Math.abs(want - S.astroK) < 0.002) S.astroK = want;
   const show = S.astroK > 0.01;

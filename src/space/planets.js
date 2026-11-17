@@ -16,6 +16,7 @@ import { atmo, atmoMat, canvasTex, earth, earthMat, giant, planetMats, redPlanet
 import { S, c01, ease, flyer, rig, say, sm } from '../game/state.js';
 import { sfx } from '../audio/audio.js';
 import { ASTRO_SCALE, makeAstronaut } from './moontrip.js';
+import { planMorph, poseRig } from '../rig/rig.js';
 import { makeRover, roverCaption, runRover } from './rover.js';
 
 let ps = 0x9a17;                                   // its own random numbers, so nothing else's randomness changes
@@ -166,7 +167,7 @@ const texOf = id => bigTex[id] || (bigTex[id] = canvasTex(1024, 512, BY[id].draw
 const EARTH_Y = earth.position.y;
 
 // ---------- Mars: the ground, its own little world ----------
-const mars = { scene: new THREE.Scene(), active: false, phase: null, t: 0, y: 0, landedT: 0 };
+const mars = { scene: new THREE.Scene(), active: false, phase: null, t: 0, y: 0, landedT: 0, where: 'mars' };   // where: 'mars' or 'moon'
 {
   const M = mars.scene;
   M.background = new THREE.Color(0xd8a47a); M.fog = new THREE.Fog(0xd8a47a, 50, 300);
@@ -214,6 +215,51 @@ const mars = { scene: new THREE.Scene(), active: false, phase: null, t: 0, y: 0,
   const dustM = new THREE.MeshStandardMaterial({ color: 0xc98a62, roughness: 1, transparent: true, opacity: 0, depthWrite: false });
   for (let i = 0; i < 28; i++) { const d = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), dustM.clone()); d.visible = false; M.add(d); mars.dust.push({ m: d, life: 0, a: 0, v: 0 }); }
 }
+// ---------- the Moon's ground (Jasper's idea: "you can go on the moon") ----------
+// No air, so: a black sky even in the daytime, no haze (far hills look as sharp as near ones), extra dark
+// shadows, and Earth hanging in the sky. It has its own random numbers, so Mars and everything else stay the same.
+const moonG = { scene: new THREE.Scene() };
+{
+  let ms = 0x3c11; const mrnd = () => { ms = (ms + 0x6D2B79F5) | 0; let x = Math.imul(ms ^ (ms >>> 15), 1 | ms); x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x; return ((x ^ (x >>> 14)) >>> 0) / 4294967296; };
+  const M = moonG.scene;
+  M.background = new THREE.Color(0x030405);
+  const home = new THREE.Mesh(new THREE.SphereGeometry(16, 40, 24), new THREE.MeshStandardMaterial({ map: earthTex, roughness: 1, emissive: 0x334466, emissiveIntensity: 0.5 }));
+  // Earth, low in the sky where the camera looks while on the ground
+  home.position.set(-300 * Math.sin(1.42), 27, -300 * Math.cos(1.42)); home.scale.setScalar(0.5); home.rotation.y = 2.2; M.add(home);
+  const sunS = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 1 }));
+  sunS.position.set(160, 120, -210); sunS.scale.setScalar(30); M.add(sunS);
+  M.add(new THREE.HemisphereLight(0x9aa6b8, 0x2a2a2a, 0.22));          // a little light bounced off the ground and from Earth
+  const sun = new THREE.DirectionalLight(0xffffff, 1.35); sun.position.set(10, 8, -9); sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
+  Object.assign(sun.shadow.camera, { left: -16, right: 16, top: 16, bottom: -16, near: 1, far: 60 }); M.add(sun);
+  const gt = canvasTex(256, 256, (g, w, h) => { g.fillStyle = '#8d8c88'; g.fillRect(0, 0, w, h);
+    let s2 = 7; const r = () => (s2 = (s2 * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < 300; i++) { g.fillStyle = ['rgba(60,60,58,0.3)', 'rgba(170,170,165,0.3)', 'rgba(95,95,92,0.35)'][i % 3]; g.beginPath(); g.arc(r() * w, r() * h, 1 + r() * 8, 0, Math.PI * 2); g.fill(); } });
+  gt.wrapS = gt.wrapT = THREE.RepeatWrapping; gt.repeat.set(60, 60);
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(800, 800), new THREE.MeshStandardMaterial({ map: gt, roughness: 1 }));
+  ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; M.add(ground);
+  const rocks = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1, 0), new THREE.MeshStandardMaterial({ roughness: 1, flatShading: true }), 180);
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sc = new THREE.Vector3(), c = new THREE.Color();
+  for (let i = 0; i < 180; i++) {
+    const a = mrnd() * Math.PI * 2, d = 8 + Math.pow(mrnd(), 1.5) * 140, s3 = 0.1 + mrnd() * (0.22 + d / 130);
+    v.set(Math.cos(a) * d, s3 * 0.3, Math.sin(a) * d); q.setFromEuler(e.set(mrnd() * 3, mrnd() * 3, mrnd() * 3)); sc.set(s3, s3 * (0.6 + mrnd() * 0.4), s3 * (0.8 + mrnd() * 0.5));
+    rocks.setMatrixAt(i, m4.compose(v, q, sc)); rocks.setColorAt(i, c.setHSL(0.1, 0.03, 0.3 + mrnd() * 0.2));
+  }
+  rocks.castShadow = true; rocks.receiveShadow = true; M.add(rocks);
+  // craters everywhere, big and small: nothing wears them away (no wind, no rain)
+  const rimM = new THREE.MeshStandardMaterial({ color: 0x9c9b97, roughness: 1 }), pitM = new THREE.MeshStandardMaterial({ color: 0x74736f, roughness: 1 });
+  for (let i = 0; i < 26; i++) {
+    const a = mrnd() * Math.PI * 2, d = 13 + mrnd() * 120, r = 1.2 + mrnd() * (2 + d / 18), x = Math.cos(a) * d, z = Math.sin(a) * d;
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(r, r * 0.15, 8, 36), rimM); rim.rotation.x = -Math.PI / 2; rim.scale.z = 0.35; rim.position.set(x, 0.05, z); rim.receiveShadow = rim.castShadow = true; M.add(rim);
+    const pit = new THREE.Mesh(new THREE.CircleGeometry(r * 0.95, 30), pitM); pit.rotation.x = -Math.PI / 2; pit.position.set(x, 0.02, z); M.add(pit);
+  }
+  const hillM = new THREE.MeshStandardMaterial({ color: 0x8a8984, roughness: 1, flatShading: true });
+  for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2 + mrnd() * 0.3, d = 170 + mrnd() * 60;
+    const h = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), hillM); h.scale.set(30 + mrnd() * 40, 3 + mrnd() * 5, 25 + mrnd() * 25); h.position.set(Math.cos(a) * d, 0, Math.sin(a) * d); M.add(h); }
+  // footprints: on the Moon they can last for millions of years
+  const fpGeo = new THREE.CircleGeometry(1, 12); fpGeo.rotateX(-Math.PI / 2); fpGeo.scale(0.09, 1, 0.16);
+  moonG.prints = new THREE.InstancedMesh(fpGeo, new THREE.MeshStandardMaterial({ color: 0x55544f, roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), 400);
+  moonG.prints.count = 0; moonG.laid = 0; M.add(moonG.prints);
+}
 const fade = document.createElement('div');
 Object.assign(fade.style, { position: 'fixed', inset: '0', background: '#2a1a12', opacity: '0', pointerEvents: 'none', zIndex: '1' });
 (stage.parentNode || document.body).insertBefore(fade, stage.nextSibling);
@@ -221,7 +267,19 @@ let dustI = 0;
 function kickDust(r) {
   const d = mars.dust[dustI++ % mars.dust.length], a = prnd() * Math.PI * 2;
   d.life = 1; d.a = a; d.v = r; d.m.visible = true; d.m.position.set(Math.cos(a) * 1.5, 0.4, Math.sin(a) * 1.5);
+  d.vy = 1.6 + prnd() * 1.4; d.tt = 0;
 }
+const onMoon = () => mars.where === 'moon';
+const groundScene = () => onMoon() ? moonG.scene : mars.scene;
+function printAt(w) {                              // two boot prints side by side: on the Moon they hop with both feet
+  const g = moonG, m4 = new THREE.Matrix4(), q = new THREE.Quaternion().setFromAxisAngle(_up, w.a.rotation.y), sc = new THREE.Vector3(1, 1, 1);
+  for (const sx of [-1, 1]) {
+    _p.set(Math.cos(w.a.rotation.y) * sx * 0.13, 0.012, -Math.sin(w.a.rotation.y) * sx * 0.13).add(w.pos); _p.y = 0.012;
+    g.prints.setMatrixAt(g.laid % 400, m4.compose(_p, q, sc)); g.laid++;
+  }
+  g.prints.count = Math.min(400, g.laid); g.prints.instanceMatrix.needsUpdate = true;
+}
+const _up = new THREE.Vector3(0, 1, 0), _p = new THREE.Vector3();
 
 // ---------- the Mars astronauts: hop down from the door, bounce along, scoop up rocks, take pictures ----------
 const sampleM = new THREE.MeshStandardMaterial({ color: 0x5e3524, roughness: 1, flatShading: true });
@@ -260,7 +318,7 @@ function runWalkers(dt, want) {
     if (w.mode === 'hopOut' || w.mode === 'hopIn') {
       // low gravity: a slow, floaty hop between the door and the ground
       w.u = Math.min(1, w.u + dt / 1.5);
-      w.pos.copy(w.from).lerp(w.to, w.u); w.pos.y += Math.sin(w.u * Math.PI) * 1.1;
+      w.pos.copy(w.from).lerp(w.to, w.u); w.pos.y += Math.sin(w.u * Math.PI) * (onMoon() ? 1.6 : 1.1);
       limbs(w, sx => [-0.6, 0.9, -1.1, -0.4]);
       if (w.u >= 1) { if (w.mode === 'hopOut') { w.mode = 'walk'; w.to.copy(spotAt(w.spot, w.to)); } else { w.mode = 'in'; w.wait = i * 1.3; } }
     } else if (w.mode === 'walk' || w.mode === 'back') {
@@ -272,8 +330,15 @@ function runWalkers(dt, want) {
       } else {
         w.pos.addScaledVector(_v.normalize(), Math.min(d, dt * 1.3));
         w.a.rotation.y = Math.atan2(_v.x, _v.z);
-        w.ph += dt * 5.2; bob = Math.abs(Math.sin(w.ph)) * 0.28;
-        limbs(w, sx => { const s = Math.sin(w.ph + (sx > 0 ? 0 : Math.PI)); return [-0.25 - s * 0.45, 0.35 + Math.max(0, s) * 0.5, s * 0.5 - 0.15, -0.35]; });
+        if (onMoon()) {                            // on the Moon you weigh one sixth as much: hop like a bunny, both feet together
+          const s0 = Math.sin(w.ph); w.ph += dt * 3.4; const s = Math.sin(w.ph);
+          bob = Math.abs(s) * 0.5;
+          if (s0 * s < 0) printAt(w);              // land, and leave footprints
+          limbs(w, () => { const k = 1 - Math.abs(s); return [-0.3 - 0.35 * k, 0.25 + 0.6 * k, -0.5 + 0.2 * Math.abs(s), -0.5]; });
+        } else {
+          w.ph += dt * 5.2; bob = Math.abs(Math.sin(w.ph)) * 0.28;
+          limbs(w, sx => { const s = Math.sin(w.ph + (sx > 0 ? 0 : Math.PI)); return [-0.25 - s * 0.45, 0.35 + Math.max(0, s) * 0.5, s * 0.5 - 0.15, -0.35]; });
+        }
       }
       w.pos.y = 0;
     } else if (w.mode === 'work') {
@@ -303,6 +368,68 @@ const rover = makeRover(mars.scene, glowTex);
 const watchAt = new THREE.Vector3();
 let roverK = 0;                                     // the camera leans toward the rover while it works
 
+// ---------- Skyfly turns into a rover (Jasper's idea: "Skyfly turns into a rover on mars") ----------
+// On the ground on Mars or the Moon, the plane changes into Skyfly, the same way it does at home, then drives a
+// slow loop around the landing spot and back. Pressing again drives home first, then changes back into the plane.
+const SKY_R = 4.5, TAU = Math.PI * 2;
+const sky = { plan: null, t: 0, a: 0, v: 0, driveT: 0, wheels: null, laid: { mars: 0, moon: 0 } };
+const skyTracks = {};
+for (const [k, sc] of [['mars', mars.scene], ['moon', moonG.scene]]) {
+  const g = new THREE.PlaneGeometry(0.5, 0.12); g.rotateX(-Math.PI / 2);
+  const m = new THREE.InstancedMesh(g, new THREE.MeshStandardMaterial({ color: k === 'moon' ? 0x5f5e5a : 0x8a4227, roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), 900);
+  m.count = 0; sc.add(m); skyTracks[k] = m;
+}
+const skyPose = () => ({ x: SKY_R - SKY_R * Math.cos(sky.a), z: SKY_R * Math.sin(sky.a), yaw: sky.a });
+function skyStamp() {                              // tire tracks under Skyfly's big wheels
+  const m = skyTracks[mars.where], n = sky.laid, k = mars.where, m4 = new THREE.Matrix4(), q = new THREE.Quaternion().setFromAxisAngle(_up, sky.a), sc = new THREE.Vector3(1, 1, 1);
+  const { x, z } = skyPose(), c = Math.cos(sky.a), s2 = Math.sin(sky.a);
+  for (const wl of sky.wheels) {
+    _p.set(x + wl.x * c + wl.z * s2, 0.014, z - wl.x * s2 + wl.z * c);
+    m.setMatrixAt(n[k] % 900, m4.compose(_p, q, sc)); n[k]++;
+  }
+  m.count = Math.min(900, n[k]); m.instanceMatrix.needsUpdate = true;
+}
+let lastStampA = 0, skyK = 0;                      // skyK: the camera pulls back while Skyfly drives
+function runSkyfly(dt) {
+  const want = !!S.on.skyfly && mars.active && mars.phase === 'ground';
+  const inside = walkers.every(w => w.mode === 'in');
+  if (want && !inside && S.on.astro) { S.on.astro = false; markOff('Astronauts'); }
+  if (want && !sky.plan) for (const id of ['door', 'gear', 'lights']) if (S.on[id]) { S.on[id] = false; const b = document.querySelector('#acts button[data-id="' + id + '"]'); if (b) b.setAttribute('aria-pressed', 'false'); }
+  const ready = inside && (S.blend.door || 0) < 0.01 && (S.blend.gear || 0) < 0.01;   // door shut and wheels down first
+  sky.v = 0;
+  if (want && (sky.plan || ready)) {
+    if (!sky.plan) { sky.plan = planMorph(rig, 5, 0); sky.t = 0; sky.driveT = 0; sfx.whirr(Math.min(sky.plan.T, 2.5)); }
+    if (sky.t < sky.plan.T) step(dt);
+    else {
+      if (!sky.wheels) measureWheels();
+      sky.v = Math.min(1.2, (sky.driveT += dt) * 0.8); sky.a += sky.v * dt / SKY_R;
+    }
+  } else if (sky.plan) {
+    if (sky.a > 0) {                               // drive back round to the landing spot first
+      const goal = Math.ceil(sky.a / TAU - 1e-9) * TAU, left = (goal - sky.a) * SKY_R;
+      sky.v = Math.min(1.2, left * 0.6 + 0.2); sky.a = Math.min(goal, sky.a + sky.v * dt / SKY_R);
+      if (sky.a >= goal) { sky.a = 0; lastStampA = 0; }
+    } else step(-dt);                              // then change back into the plane
+  }
+  if (sky.v > 0 && Math.abs(sky.a - lastStampA) * SKY_R > 0.3) { lastStampA = sky.a; skyStamp(); }
+  S.groundDrive = sky.v;
+  skyK += ((sky.plan ? 1 : 0) - skyK) * Math.min(1, dt * 0.8);
+  if (sky.plan) poseRig(rig, sky.plan, sky.t, ease);
+  if (sky.plan && sky.t <= 0) sky.plan = null;
+}
+function step(d) {                                 // play the change forward or backward, with the soft clacks
+  const t0 = sky.t; sky.t = Math.max(0, Math.min(sky.plan.T, sky.t + d));
+  if (sky.plan.locks.some(L => (t0 < L && sky.t >= L) || (t0 > L && sky.t <= L))) sfx.lock();
+  if (d < 0 && t0 === sky.plan.T) sfx.whirr(Math.min(sky.plan.T, 2.5));
+}
+function measureWheels() {                         // where Skyfly's wheels touch the ground, measured from the toy itself
+  flyer.updateMatrixWorld(true);
+  const v = new THREE.Vector3(), list = [];
+  for (const d of rig.drivers) { d.w.getWorldPosition(v); flyer.worldToLocal(v); if (v.y < 0.9) list.push({ x: v.x, z: v.z }); }
+  sky.wheels = list.length ? list : [{ x: -1, z: 0 }, { x: 1, z: 0 }];
+}
+const skyStepLabel = () => { let l = ''; for (const st of sky.plan.steps) if (st.at <= sky.t) l = st.label; return l; };
+
 // ---------- flying between planets, landing, and the buttons ----------
 const TRAVEL = 4.6;
 let at = 'earth', to = null, travelT = 0, arrivedT = 0, factClock = 0, waitAstro = false;
@@ -317,26 +444,34 @@ function wear(id) {                                // dress the big planet behin
   S.visitScope = p.scope; S.visitName = p.name; S.homeDot = dots.earth.at; S.bigAt = BIG_AT; S.bigR = BIG_R[id] || 0;
 }
 function goPlanet(id) {
-  if (mars.active || mars.phase) { say('Take off from Mars first', 2.4); return; }
+  if (mars.active || mars.phase) { say(onMoon() ? 'Take off from the Moon first' : 'Take off from Mars first', 2.4); return; }
   if (to) return;
   if (id === at) { say(id === 'earth' ? 'We\'re right here at Earth. Pick another planet!' : 'We\'re already at ' + BY[id].name, 2.4); return; }
   to = id; travelT = 0; sfx.whirr(1.2);
 }
-function landAction() {
+function takeOff() { mars.phase = 'up'; mars.t = 0; for (const [id, l] of [['astro', 'Astronauts'], ['rover', 'Rover'], ['skyfly', 'Skyfly rover']]) { S.on[id] = false; markOff(l); } }
+function landAction(where) {
   if (to) return;
-  if (mars.active && mars.phase === 'ground') { mars.phase = 'up'; mars.t = 0; S.on.astro = false; markOff('Astronauts'); S.on.rover = false; markOff('Rover'); return; }
+  if (mars.active && mars.phase === 'ground') { takeOff(); return; }
+  if (mars.phase) return;
+  const go = w => {
+    mars.where = w;
+    if (S.astroK > 0.02 || S.on.astro) { S.on.astro = false; markOff('Astronauts'); waitAstro = true; say('Astronauts, back inside! Then down to ' + (w === 'moon' ? 'the Moon' : 'Mars'), 2.6); }
+    mars.phase = 'down'; mars.t = 0;
+  };
+  if (where === 'moon') { if (at === 'earth') go('moon'); return; }
   if (at === 'earth') { S.on.space = false; markOff('Fly to space'); say('Down we go, home to Jasper Junction', 2.6); return; }
-  if (at === 'mars' && !mars.phase) {
-    if (S.astroK > 0.02 || S.on.astro) { S.on.astro = false; markOff('Astronauts'); waitAstro = true; say('Astronauts, back inside! Then down to Mars', 2.6); }
-    mars.phase = 'down'; mars.t = 0; return;
-  }
+  if (at === 'mars') go('mars');
 }
 function markOff(label) { for (const b of document.querySelectorAll('#acts button')) if (b.textContent === label) b.setAttribute('aria-pressed', 'false'); }
 
 function setActive(on) {
   if (on === mars.active) return;
   mars.active = on;
-  if (on) mars.scene.add(flyer); else space.parent.add(flyer);   // Skyrender itself goes down to Mars and back
+  if (!on) { space.parent.add(flyer); return; }    // Skyrender itself goes down to Mars or the Moon, and back
+  const sc = groundScene(); sc.add(flyer);
+  for (const w of walkers) sc.add(w.a);
+  for (const d of mars.dust) { sc.add(d.m); d.m.material.color.setHex(onMoon() ? 0x9b9a95 : 0xc98a62); }
 }
 
 // Every frame (sp: 0 in the sky, 1 in space), right after the sky and before the Moon trip
@@ -345,7 +480,7 @@ function runPlanets(dt, sp) {
   // anything that means "go home" (Fly to space off, or a new mode picked) takes Skyrender back to Earth first
   const wantHome = S.plan.to !== 0 || !S.on.space || S.pending !== null;
   if (wantHome && !to) {
-    if (mars.active && mars.phase === 'ground') { mars.phase = 'up'; mars.t = 0; S.on.rover = false; markOff('Rover'); }
+    if (mars.active && mars.phase === 'ground') takeOff();
     else if (!mars.phase && at !== 'earth' && sp > 0.5) { to = 'earth'; travelT = 0; }
   }
   // flying between planets: the one you leave falls back into the row (Earth drops away below), the stars slide
@@ -378,16 +513,17 @@ function runPlanets(dt, sp) {
     if (waitAstro && S.astroK > 0.02) { fade.style.opacity = '0'; }
     else {
       waitAstro = false; mars.t += dt; const t = mars.t;
+      if (S.on.gear) { S.on.gear = false; const b = document.querySelector('#acts button[data-id="gear"]'); if (b) b.setAttribute('aria-pressed', 'false'); }   // wheels down to land
       fade.style.opacity = String(t < 1.4 ? t / 1.4 : Math.max(0, 1 - (t - 1.4) / 1.2));
       if (t >= 1.4) setActive(true);
       mars.y = 10 * (1 - ease(c01((t - 1.4) / 3.8)));
       if (mars.active && mars.y < 3.5 && mars.y > 0.02 && prnd() < dt * 18) kickDust(1 + (3.5 - mars.y));
-      if (t >= 5.2) { mars.phase = 'ground'; mars.y = 0; mars.landedT = 0; say('Touchdown on Mars!', 2.6); sfx.lock(); }
+      if (t >= 5.2) { mars.phase = 'ground'; mars.y = 0; mars.landedT = 0; say(onMoon() ? 'Touchdown on the Moon!' : 'Touchdown on Mars!', 2.6); sfx.lock(); }
     }
   } else if (mars.phase === 'ground') {
     mars.landedT += dt;
   } else if (mars.phase === 'up') {
-    const outNow = walkers.some(w => w.mode !== 'in');
+    const outNow = walkers.some(w => w.mode !== 'in') || !!sky.plan;   // astronauts in, and Skyfly back into the plane
     if (!outNow) {
       mars.t += dt; const t = mars.t;
       mars.y = 12 * ease(c01(t / 2.6));
@@ -397,22 +533,31 @@ function runPlanets(dt, sp) {
       if (t >= 4.2) { mars.phase = null; fade.style.opacity = '0'; arrivedT = 0; }
     }
   }
-  S.onMars = mars.active;
+  S.onGround = mars.active;
   for (const d of mars.dust) {
     if (d.life <= 0) continue;
+    if (onMoon()) {                                // no air: each grain flies in an arc and falls straight back, no cloud
+      d.tt += dt; const y = 0.4 + d.vy * d.tt - 0.8 * d.tt * d.tt;
+      d.m.position.x += Math.cos(d.a) * d.v * dt * 3; d.m.position.z += Math.sin(d.a) * d.v * dt * 3; d.m.position.y = Math.max(0, y);
+      d.m.scale.setScalar(0.16); d.m.material.opacity = 0.9;
+      if (y <= 0) { d.life = 0; d.m.visible = false; }
+      continue;
+    }
     d.life -= dt * 0.55; const age = 1 - d.life;
     d.m.position.x += Math.cos(d.a) * d.v * dt * 2; d.m.position.z += Math.sin(d.a) * d.v * dt * 2; d.m.position.y += dt * 0.5;
     d.m.scale.setScalar(0.5 + age * 2.4); d.m.material.opacity = 0.7 * Math.min(1, age * 5) * Math.max(0, d.life);
     if (d.life <= 0) d.m.visible = false;
   }
-  const out = mars.active ? runWalkers(dt, S.on.astro && mars.phase === 'ground') : 0;
-  if (mars.active) {                                // the rover watches Skyrender land, then the astronauts
+  const out = mars.active ? runWalkers(dt, S.on.astro && mars.phase === 'ground' && !sky.plan) : 0;
+  runSkyfly(dt);
+  if (mars.active && !onMoon()) {                   // the rover watches Skyrender land, then the astronauts
     const w = walkers.find(w2 => w2.mode !== 'in');
-    if (w) watchAt.copy(w.pos).setY(1); else watchAt.set(0, mars.y + 1.2, 0);
+    if (w) watchAt.copy(w.pos).setY(1); else { const sp2 = skyPose(); watchAt.set(sp2.x, mars.y + 1.2, sp2.z); }
     runRover(rover, dt, !!S.on.rover && mars.phase === 'ground', watchAt);
   }
-  roverK += ((mars.active && S.on.rover && mars.phase === 'ground' ? 1 : 0) - roverK) * Math.min(1, dt * 0.8);
-  window.__planets = { at, to, travel: travelT, mars: mars.phase || (mars.active ? 'ground' : null), onMars: mars.active, walkersOut: out,
+  roverK += ((mars.active && !onMoon() && S.on.rover && mars.phase === 'ground' ? 1 : 0) - roverK) * Math.min(1, dt * 0.8);
+  window.__planets = { at, to, travel: travelT, mars: mars.phase || (mars.active ? 'ground' : null), onMars: mars.active && !onMoon(), onMoon: mars.active && onMoon(), walkersOut: out,
+    skyfly: { on: !!sky.plan, t: sky.t, T: sky.plan ? sky.plan.T : 0, a: sky.a, v: sky.v, tracks: sky.laid[mars.where] }, prints: moonG.laid,
     working: walkers.filter(w => w.mode === 'work').length,
     rover: { mode: rover.mode, stop: rover.stop, zaps: rover.zaps, spark: rover.spark.material.opacity, tubes: rover.tubes, tracks: rover.laid, arm: rover.armK } };
 }
@@ -420,16 +565,31 @@ function runPlanets(dt, sp) {
 // The caption while traveling, at another planet, or on Mars (empty: the plane's own caption shows)
 const MARS_WALK = ['Hop! On Mars you weigh less than half as much, so every step is bouncy', 'The commander scoops up Mars rocks to study back home', 'Click! A picture of the commander at work on Mars'];
 const MARS_GROUND = ['On Mars! The sky is butterscotch because of red dust in the air', 'Sunsets on Mars are blue', 'Those two little moons in the sky are Phobos and Deimos', 'Tap Astronauts to go out and study the rocks'];
+const MOON_WALK = ['Hop hop! On the Moon you weigh one sixth as much, so astronauts hop like bunnies', 'Footprints on the Moon can last millions of years. No wind or rain wipes them away', 'The commander picks up Moon rocks to study back home', 'Click! A picture of the commander on the Moon'];
+const MOON_FACTS = ['Twelve astronauts have walked on the Moon', 'Moon dust is as fine as flour, and it sticks to everything', 'A day on the Moon lasts about a month'];
+const MOON_GROUND = ['On the Moon! The sky is black even in the daytime, because the Moon has no air', 'That\'s Earth up there. From the Moon, Earth stays in the same spot in the sky', 'Shadows on the Moon are extra dark. There\'s no air to spread the light around', 'Tap Astronauts to go out and explore'];
+const SKY_DRIVE = {
+  mars: ['Skyfly, Mars rover! Big tractor tires grip the soft red dust', 'Engines need oxygen to burn fuel. Mars air has almost none, so Skyfly runs on batteries', 'Skyfly\'s cab is sealed tight with air inside, so the driver doesn\'t need a space suit', 'Look at Skyfly\'s tire tracks in the dust'],
+  moon: ['Skyfly, Moon rover! Astronauts drove buggies on the Moon too, back in 1971 and 1972', 'There\'s no air at all on the Moon, so Skyfly runs on batteries, like the real Moon buggies', 'Skyfly\'s cab is sealed tight with air inside, so the driver doesn\'t need a space suit', 'Skyfly\'s tire tracks will stay on the Moon for a very long time. There\'s no wind to blow them away'] };
+function skyCaption() {
+  const place = onMoon() ? 'Moon' : 'Mars';
+  if (S.on.skyfly && !sky.plan) return walkers.some(w => w.mode !== 'in') ? 'Astronauts, back inside! Then Skyfly can change' : 'Skyfly turns into a ' + place + ' rover!';
+  if (!sky.plan) return '';
+  if (!S.on.skyfly) return sky.a > 0 ? 'Skyfly drives back to the landing spot' : 'Skyfly turns back into the plane';
+  if (sky.t < sky.plan.T) return sky.t < 1.2 ? 'Skyfly turns into a ' + place + ' rover!' : skyStepLabel() || 'Skyfly turns into a ' + place + ' rover!';
+  const L = SKY_DRIVE[mars.where]; return L[Math.floor(sky.driveT / 6) % L.length];
+}
 function planetCaption() {
   if (S.plan.to !== 0) return '';
   if (to) return to === 'earth' ? 'Flying home to Earth!' : travelT < 0.75 ? 'Flying to ' + BY[to].name + '! ' + BY[to].trip : BY[to].arrive;
-  if (mars.phase === 'down') return waitAstro ? '' : mars.t < 1.4 ? 'Landing on Mars!' : 'Down through the thin Mars air. Rockets slow Skyrender down';
-  if (mars.phase === 'up') return walkers.some(w => w.mode !== 'in') ? 'Astronauts, back inside! Then up we go' : 'Rockets on! Back up to space';
+  if (mars.phase === 'down') return waitAstro ? '' : mars.t < 1.4 ? (onMoon() ? 'Landing on the Moon!' : 'Landing on Mars!') : onMoon() ? (mars.y < 3.5 ? 'Moon dust flies out and falls straight back down. No air to make a dust cloud' : 'No air on the Moon, so only rockets can slow Skyrender down') : 'Down through the thin Mars air. Rockets slow Skyrender down';
+  if (mars.phase === 'up') return sky.plan ? (sky.a > 0 ? 'Skyfly drives back. Then it turns into the plane and up we go' : 'Skyfly turns back into the plane. Then up we go') : walkers.some(w => w.mode !== 'in') ? 'Astronauts, back inside! Then up we go' : 'Rockets on! Back up to space';
   if (mars.active) {
-    if (S.on.rover) { const c = roverCaption(rover); if (c) return c; }
-    const k = Math.floor(mars.landedT / 6);
-    if (walkers.some(w => w.mode !== 'in')) return k % 2 ? MARS_WALK[(k >> 1) % MARS_WALK.length] : BY.mars.facts[(k >> 1) % BY.mars.facts.length];
-    return mars.landedT < 3 ? 'Touchdown on Mars!' : MARS_GROUND[k % MARS_GROUND.length];
+    const sc = skyCaption(); if (sc) return sc;
+    if (S.on.rover && !onMoon()) { const c = roverCaption(rover); if (c) return c; }
+    const k = Math.floor(mars.landedT / 6), [walk, facts, ground] = onMoon() ? [MOON_WALK, MOON_FACTS, MOON_GROUND] : [MARS_WALK, BY.mars.facts, MARS_GROUND];
+    if (walkers.some(w => w.mode !== 'in')) return k % 2 ? walk[(k >> 1) % walk.length] : facts[(k >> 1) % facts.length];
+    return mars.landedT < 3 ? (onMoon() ? 'Touchdown on the Moon!' : 'Touchdown on Mars!') : ground[k % ground.length];
   }
   if (S.planeAlt < 600 || !S.on.space) return '';
   const p = BY[at];
@@ -439,8 +599,10 @@ function planetCaption() {
   return p.facts[f % p.facts.length];
 }
 // What the buttons should show: in space, the planet row; Land at Earth and Mars, Take off on Mars
-const planetUI = () => ({ at, to, landed: mars.active && mars.phase === 'ground', busy: !!mars.phase && mars.phase !== 'ground', canLand: !to && !mars.phase && (at === 'earth' || at === 'mars') });
-const marsView = () => ({ on: mars.active, y: mars.y, scene: mars.scene, rk: roverK, rx: rover.pos.x, rz: rover.pos.z, follow: walkers.some(w => w.mode !== 'in') ? 0.3 : 0.5 });
+const planetUI = () => ({ at, to, landed: mars.active && mars.phase === 'ground', busy: !!mars.phase && mars.phase !== 'ground', canLand: !to && !mars.phase && (at === 'earth' || at === 'mars'),
+  where: mars.active || mars.phase ? mars.where : null, skyfly: !!sky.plan || !!S.on.skyfly });
+const marsView = () => { const p = skyPose(); return { on: mars.active, y: mars.y, scene: groundScene(), rk: roverK, rx: rover.pos.x, rz: rover.pos.z,
+  follow: walkers.some(w => w.mode !== 'in') ? 0.3 : sky.plan ? 0.2 : 0.5, sk: skyK, fx: sky.plan ? p.x : 0, fz: sky.plan ? p.z : 0, yaw: sky.plan ? p.yaw : 0 }; };
 
 wear('earth');
 export { PLANETS, goPlanet, landAction, marsView, planetCaption, planetUI, runPlanets };
