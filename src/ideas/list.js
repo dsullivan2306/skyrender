@@ -14,4 +14,6 @@ export const IDEAS = [
     when: '2026-11-17', what: 'Land on the Moon, and on Mars or the Moon tap Skyfly rover: Skyrender turns into Skyfly and drives around' },
   { words: 'Instead of skyfly being a tractor on mars it\u2019s a rover takeing pictures of it',
     when: '2026-11-18', what: 'On Mars, Skyfly\u2019s smokestack becomes a camera mast. It stops, turns its camera, and click!' },
+  { words: 'Instead of skyfly being the tractor as the rover he\u2019s going to be a real rover',
+    when: '2026-11-20', what: 'On Mars and the Moon, Skyfly changes into a real rover: six wheels, a flat top, and a camera on a mast' },
 ];

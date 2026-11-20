@@ -2,7 +2,9 @@
 // Each joint stores a pose for every mode. A transformation between ANY two modes is planned on the
 // fly from wherever the toy is right now: small accessories tuck away first, the big body sections
 // hinge into place, then the new mode's accessories deploy.
-const MODES = ['plane', 'robot', 'train', 'rocket', 'truck', 'tractor'];
+// 'rover' is Skyfly's Mars and Moon shape. It has no mode button: Skyfly changes into it only on the ground on
+// Mars or the Moon. A joint's pose for a mode can name another mode ("rover: 'train'") to borrow that pose.
+const MODES = ['plane', 'robot', 'train', 'rocket', 'truck', 'tractor', 'rover'];
 
 function buildRig(THREE, tex) {
   const H = Math.PI / 2, PI = Math.PI;
@@ -153,11 +155,12 @@ function buildRig(THREE, tex) {
     const base = { p: (spec.plane && spec.plane.p) || [0, 0, 0], r: (spec.plane && spec.plane.r) || [0, 0, 0], S: (spec.plane && spec.plane.S) || [1, 1, 1] };
     const full = q => mk(pivot, { p: (q && q.p) || base.p, r: (q && q.r) || base.r, S: (q && q.S) || base.S });
     g.userData = {
-      poses: MODES.map(m => full(spec[m])),
+      poses: MODES.map(m => full(typeof spec[m] === 'string' ? spec[spec[m]] : spec[m])),
       stow: spec.stow ? full(spec.stow) : full(base),
       open: spec.open ? full(spec.open) : null,
       kind: spec.kind || 'body', ord: spec.ord ?? 5, pulse: spec.pulse || null,
-      say: spec.say || {}, stowSay: spec.stowSay || null, lock: !!spec.lock, arc: spec.arc || 0
+      say: spec.say || {}, stowSay: spec.stowSay || null, lock: !!spec.lock, arc: spec.arc || 0,
+      late: spec.late || null, first: spec.first || null, bodyArc: spec.bodyArc || null
     };
     const p0 = g.userData.poses[0];
     g.position.set(...p0.P); g.rotation.set(...p0.R); g.scale.set(...p0.S);
@@ -203,12 +206,13 @@ function buildRig(THREE, tex) {
     }
     return t;
   };
-  const driverSet = (parent, s, pivot, label, truckZ, truckLabel, tr) => {
+  const driverSet = (parent, s, pivot, label, truckZ, truckLabel, tr, rv) => {
     const tk = truckZ == null ? {} : { truck: { p: [s * 0.3, -0.5, truckZ] } };
     const tt = tr ? { tractor: { p: tr.hg } } : {};
-    const hg = J(parent, pivot, { kind: 'acc', ord: 1, train: { p: [s * 0.06, -0.5, 0] }, ...tk, ...tt, say: { train: label, truck: truckLabel || null, tractor: tr ? tr.label : null } });
+    const rh = rv ? { rover: { p: rv.hg } } : {};
+    const hg = J(parent, pivot, { kind: 'acc', ord: 1, train: { p: [s * 0.06, -0.5, 0] }, ...tk, ...tt, ...rh, say: { train: label, truck: truckLabel || null, tractor: tr ? tr.label : null, rover: rv ? rv.label : null } });
     hg.add(box(0.07, 0.5, 0.22, M.iron));
-    const wj = J(hg, [0, 0, 0], { kind: 'acc', ord: 1, train: { p: [0, -0.49, 0] }, ...(truckZ == null ? {} : { truck: { p: [s * 0.25, -0.49, 0] } }), ...(tr ? { tractor: { p: tr.wj } } : {}) });
+    const wj = J(hg, [0, 0, 0], { kind: 'acc', ord: 1, train: { p: [0, -0.49, 0] }, ...(truckZ == null ? {} : { truck: { p: [s * 0.25, -0.49, 0] } }), ...(tr ? { tractor: { p: tr.wj } } : {}), ...(rv ? { rover: { p: [0, -0.49, 0] } } : {}) });
     const w = driverWheel(s, s > 0 ? 0 : H);          // left and right cranks set a quarter turn apart, like a real engine
     wj.add(w);
     if (tr) tractorTire(w, s, tr.R, tr.tube, tr.tireLabel);
@@ -260,6 +264,8 @@ function buildRig(THREE, tex) {
   const rods = [];
   const navLights = [];
   const named = { gear: [], hatch: [] };
+  // Rover wheels: where the six driving wheels hang (x out from their pivots, height, front-to-back spots)
+  const RV = { dx: 0.6, y: -0.55, z: [0.3, 1.75, 3.2] };
   let stackJ = null;
 
   // =====================================================================
@@ -295,7 +301,7 @@ function buildRig(THREE, tex) {
   // Main gear (down in plane mode) and its bay doors, which open only while the wheels pass through
   for (const s of [1, -1]) {
     const g = named.gear[named.gear.push(null) - 1] = J(root, [s * 0.35, -0.15, 0.9], {
-      kind: 'acc', ord: 0, stow: { r: [H, 0, 0] }, robot: { r: [H, 0, 0] }, train: { r: [H, 0, 0] }, rocket: { r: [H, 0, 0] }, truck: { p: [s * 0.4, -0.15, -3.8], r: [0, 0, 0] },
+      kind: 'acc', ord: 0, stow: { r: [H, 0, 0] }, robot: { r: [H, 0, 0] }, train: { r: [H, 0, 0] }, rocket: { r: [H, 0, 0] }, truck: { p: [s * 0.4, -0.15, -3.8], r: [0, 0, 0] }, rover: 'stow',
       say: { plane: s > 0 ? 'Landing gear swings down' : null, truck: s > 0 ? 'Plane landing gear becomes the trailer\'s landing legs' : null }, stowSay: s > 0 ? 'Landing gear swings up into the belly' : null
     });
     g.add(gear(0.55, 0.2, true));
@@ -306,8 +312,8 @@ function buildRig(THREE, tex) {
 
   // Middle rail trucks: drop straight down out of the belly for train mode
   for (const s of [1, -1]) {
-    driverSet(root, s, [s * 0.3, 0, 1.3], null);
-    driverSet(root, s, [s * 0.3, 0, 0.4], null, -2.3, null, { hg: [s * 0.35, -0.15, -1.15], wj: [s * 0.4, -0.15, 0], R: 0.6, tube: 0.22, label: s > 0 ? 'Big back wheels swing out' : null, tireLabel: s > 0 ? 'Giant tractor tires pump up' : null });
+    driverSet(root, s, [s * 0.3, 0, 1.3], null, null, null, null, { hg: [s * RV.dx, RV.y, RV.z[1] - 1.3] });
+    driverSet(root, s, [s * 0.3, 0, 0.4], null, -2.3, null, { hg: [s * 0.35, -0.15, -1.15], wj: [s * 0.4, -0.15, 0], R: 0.6, tube: 0.22, label: s > 0 ? 'Big back wheels swing out' : null, tireLabel: s > 0 ? 'Giant tractor tires pump up' : null }, { hg: [s * RV.dx, RV.y, RV.z[0] - 0.4], label: s > 0 ? 'Six wheels drop down, three on each side' : null });
     // Side rod: ties the three driving wheels together; it rides around with the crank pins
     const rod = J(root, [s * 0.3, 0, 0.9], { kind: 'acc', ord: 1.5, train: { p: [s * 0.15, -0.79, 0.4] }, say: { train: s > 0 ? 'Side rods hook the driving wheels together' : null } });
     rod.add(box(0.04, 0.07, 1.86, M.steel), box(0.05, 0.1, 0.1, M.brass, 0, 0, 0.9), box(0.05, 0.1, 0.1, M.brass, 0, 0, 0), box(0.05, 0.1, 0.1, M.brass, 0, 0, -0.9));
@@ -462,10 +468,11 @@ function buildRig(THREE, tex) {
 
     // Chrome exhaust stacks: stored lying down inside the body, stand up and telescope tall
     const ex = J(root, [s * 0.3, 0.05, 0.55], { kind: 'acc', ord: 5.6, truck: { p: [s * 0.79, 0.4, -0.85], r: [-H, 0, 0] },
-      say: { truck: s > 0 ? 'Chrome smokestacks stand up beside the sleeper' : null } });
+      ...(s > 0 ? { rover: { p: [0, 0.95, 2.45], r: [-H, 0, 0] } } : {}),
+      say: { truck: s > 0 ? 'Chrome smokestacks stand up beside the sleeper' : null, rover: s > 0 ? 'A chrome pole stands up and stretches into a camera mast' : null } });
     const pipe = (r, mat) => new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.9, 16).rotateX(H), mat);
     ex.add(pipe(0.075, M.steel), box(0.2, 0.03, 0.5, M.dark, 0, 0, -0.1));
-    const ex1 = J(ex, [0, 0, 0], { kind: 'acc', ord: 5.7, truck: { p: [0, 0, 0.88] } }); ex1.add(pipe(0.066, M.steel));
+    const ex1 = J(ex, [0, 0, 0], { kind: 'acc', ord: 5.7, truck: { p: [0, 0, 0.88] }, ...(s > 0 ? { rover: { p: [0, 0, 0.88] } } : {}) }); ex1.add(pipe(0.066, M.steel));
     const ex2 = J(ex1, [0, 0, 0], { kind: 'acc', ord: 5.8, truck: { p: [0, 0, 0.88] } }); ex2.add(pipe(0.058, M.steel));
     const lip = new THREE.Mesh(new THREE.CircleGeometry(0.05, 14), M.dark); lip.position.z = 0.451; ex2.add(lip);
     (truckBits.stacks = truckBits.stacks || []).push(ex2);
@@ -553,9 +560,9 @@ function buildRig(THREE, tex) {
     const w = J(root, [s * 0.5, -0.2, 0.9], {
       order: 'ZYX', ord: 4,
       plane: { r: [0, 0, s * 0.06] }, tractor: { p: [0, 0.9, -3.1], r: [0, 0, s * 0.03] }, robot: { r: [0, 0, s * 1.5] }, rocket: { r: [0, s * 0.73, 0] },
-      train: { p: [s * 0.12, 0.6, -0.12], r: [0, s * 1.384, s * H] }, truck: { p: [-s * 0.5, s > 0 ? 0.8 : 0.84, -3.0], r: [0, s * 1.384, 0] },
+      train: { p: [s * 0.12, 0.6, -0.12], r: [0, s * 1.384, s * H] }, truck: { p: [-s * 0.5, s > 0 ? 0.8 : 0.84, -3.0], r: [0, s * 1.384, 0] }, rover: { p: [-s * 0.215, s > 0 ? 0.8 : 0.84, -1.17], r: [0, -s * 1.757, 0] }, bodyArc: { rover: 0.7 },
       say: { robot: s > 0 ? 'Wings hinge back into a jet pack' : null, plane: s > 0 ? 'Wings swing out wide' : null,
-             train: s > 0 ? 'Wings sweep back into the coal tender walls' : null, truck: s > 0 ? 'Wings fold flat and ride inside the trailer as cargo' : null, rocket: s > 0 ? 'Wings sweep back into big rocket fins' : null, tractor: s > 0 ? 'Wings slide back into long sprayer booms' : null }
+             train: s > 0 ? 'Wings sweep back into the coal tender walls' : null, truck: s > 0 ? 'Wings fold flat and ride inside the trailer as cargo' : null, rocket: s > 0 ? 'Wings sweep back into big rocket fins' : null, tractor: s > 0 ? 'Wings slide back into long sprayer booms' : null, rover: s > 0 ? 'Wings fold forward into a flat top deck' : null }
     });
     (named.wings = named.wings || []).push({ j: w, s });
     w.add(new THREE.Mesh(wingGeo(s, 3.7, 1.8, 0.5, 2.0, 0.09), M.white));
@@ -566,13 +573,13 @@ function buildRig(THREE, tex) {
     // Flap: hinged along the trailing edge, lowered for landing
     const fx = 1.4, fz = -0.9 - teSlope * fx;
     const fh = new THREE.Group(); fh.position.set(s * fx, 0, fz); fh.rotation.y = s * Math.atan(teSlope); w.add(fh);
-    const flap = J(fh, [0, 0, 0], { kind: 'acc', ord: 1, plane: { r: [-0.6, 0, 0] }, stow: { r: [0, 0, 0] }, robot: { r: [0, 0, 0] }, train: { r: [0, 0, 0] }, rocket: { r: [0, 0, 0] }, truck: { r: [Math.PI, 0, 0] }, say: { plane: s > 0 ? 'Flaps lower for landing' : null }, stowSay: s > 0 ? 'Flaps tuck in' : null });
+    const flap = J(fh, [0, 0, 0], { kind: 'acc', ord: 1, plane: { r: [-0.6, 0, 0] }, stow: { r: [0, 0, 0] }, robot: { r: [0, 0, 0] }, train: { r: [0, 0, 0] }, rocket: { r: [0, 0, 0] }, truck: { r: [Math.PI, 0, 0] }, rover: 'stow', say: { plane: s > 0 ? 'Flaps lower for landing' : null }, stowSay: s > 0 ? 'Flaps tuck in' : null });
     flap.add(box(1.6, 0.03, 0.34, M.white, 0, 0, -0.17), box(1.6, 0.012, 0.02, M.dark, 0, 0.02, -0.01));
 
     // Winglet: folds flat for robot and train
     const wl = J(w, [s * 3.7, 0.02, -1.35], {
       kind: 'acc', ord: 1.5, plane: { r: [0, 0, -s * 0.3] }, stow: { r: [0, 0, -s * H] },
-      robot: { r: [0, 0, -s * H] }, train: { r: [0, 0, -s * H] }, truck: { r: [0, 0, -s * H] },
+      robot: { r: [0, 0, -s * H] }, train: { r: [0, 0, -s * H] }, truck: { r: [0, 0, -s * H] }, rover: 'stow',
       say: { plane: s > 0 ? 'Winglets flip up' : null, rocket: s > 0 ? 'Winglets flip up' : null }, stowSay: s > 0 ? 'Winglets fold flat' : null
     });
     wl.add(box(0.05, 0.5, 0.4, M.livery, 0, 0.25, 0));
@@ -580,7 +587,7 @@ function buildRig(THREE, tex) {
 
     // Engine: rides the wing, swivels to keep pointing the right way in every mode
     const e = J(w, [s * 1.1, -0.35, 0.35], {
-      ord: 4.5, train: { r: [0, -s * 1.384, 0] }, truck: { r: [0, -s * 1.384, 0] }, rocket: { r: [0, -s * 0.73, 0] },
+      ord: 4.5, train: { r: [0, -s * 1.384, 0] }, rover: { p: [s * 0.393, 0, -0.074], r: [0, s * 1.757, 0] }, truck: { r: [0, -s * 1.384, 0] }, rocket: { r: [0, -s * 0.73, 0] },
       say: { train: s > 0 ? 'Jet engines swing around into water tanks' : null, truck: null, rocket: s > 0 ? 'Engines swivel to point straight down' : null }
     });
     e.add(tube(0.32, 0.26, 1.3, M.white));
@@ -611,7 +618,7 @@ function buildRig(THREE, tex) {
     uShell.add(decal(tex && tex.emblem, 0.42, 0.42, [-s * 0.012, 0, 0.05], [-s, 0, 0], [0, 0, -1]));
     ua.add(uShell);
 
-    driverSet(ua, s, [-s * 0.25, 0, 0.4], s > 0 ? 'Big red driving wheels drop down' : null, 0.75, s > 0 ? 'The train\'s big red wheels slide out to the four corners' : null, { hg: [s * 0.2, -0.3, 0.7], wj: [s * 0.25, -0.32, 0], R: 0.4, tube: 0.1, label: s > 0 ? 'Front wheels tuck in under the nose' : null });
+    driverSet(ua, s, [-s * 0.25, 0, 0.4], s > 0 ? 'Big red driving wheels drop down' : null, 0.75, s > 0 ? 'The train\'s big red wheels slide out to the four corners' : null, { hg: [s * 0.2, -0.3, 0.7], wj: [s * 0.25, -0.32, 0], R: 0.4, tube: 0.1, label: s > 0 ? 'Front wheels tuck in under the nose' : null }, { hg: [s * RV.dx, RV.y, RV.z[2] - 2.2] });
 
     // Shoulder armor block rides up out of the upper arm
     const pd = J(ua, [-s * 0.25, 0, 0.35], { kind: 'acc', ord: 5, robot: { p: [0, 0, -0.6] }, say: { robot: s > 0 ? 'Shoulder armor slides up' : null } });
@@ -630,8 +637,8 @@ function buildRig(THREE, tex) {
     fa.add(fShell);
 
     const fist = J(fa, [s * 0.19, 0.62, 0.6], { lock: true,
-      kind: 'acc', ord: 7, robot: { p: [0, 0, 0.55], r: [0, 0, s * H] }, truck: { p: [0, -0.75, 0.45] },
-      say: { robot: s > 0 ? 'Fists slide out and twist into place' : null, truck: s > 0 ? 'Robot fists slide out front as the bumper' : null }, stowSay: s > 0 ? 'Fists pull back in' : null
+      kind: 'acc', ord: 7, robot: { p: [0, 0, 0.55], r: [0, 0, s * H] }, truck: { p: [0, -0.75, 0.45] }, rover: 'truck',
+      say: { robot: s > 0 ? 'Fists slide out and twist into place' : null, truck: s > 0 ? 'Robot fists slide out front as the bumper' : null, rover: s > 0 ? 'Front cameras slide out low, to spot rocks' : null }, stowSay: s > 0 ? 'Fists pull back in' : null
     });
     fist.add(box(0.34, 0.36, 0.42, M.gun));
     fist.add(box(0.36, 0.1, 0.08, M.dark, 0, 0.1, 0.2), box(0.36, 0.1, 0.08, M.dark, 0, -0.04, 0.2));
@@ -661,12 +668,12 @@ function buildRig(THREE, tex) {
     st.add(halfTube(s, 0.225, 0.225, 0.03, M.brass).translateY(0.25));
     const sc = new THREE.Mesh(new THREE.CircleGeometry(0.2, 18, s > 0 ? -H : H, PI), M.dark); sc.rotation.x = -H; sc.position.y = 0.32; st.add(sc);
     // Headlamp half
-    const hl = J(fa, [0, 0.55, 0.78], { kind: 'acc', ord: 2.2, train: { p: [0, 0.5, 0] }, tractor: { p: [s * 0.45, 0.2, 0.25] }, truck: { p: [s * 0.8, 0.3, 0.14] }, say: { train: s > 0 ? 'Big headlamp pops up' : null, truck: s > 0 ? 'The locomotive headlamp splits into two headlights' : null } });
+    const hl = J(fa, [0, 0.55, 0.78], { kind: 'acc', ord: 2.2, train: { p: [0, 0.5, 0] }, tractor: { p: [s * 0.45, 0.2, 0.25] }, truck: { p: [s * 0.8, 0.3, 0.14] }, rover: 'truck', say: { train: s > 0 ? 'Big headlamp pops up' : null, truck: s > 0 ? 'The locomotive headlamp splits into two headlights' : null } });
     hl.add(box(0.11, 0.2, 0.2, M.iron, s * 0.055, 0, 0), box(0.09, 0.14, 0.02, M.head, s * 0.05, 0, 0.105), box(0.12, 0.03, 0.24, M.brass, s * 0.06, 0.11, 0));
 
     if (s > 0) {
       const ng = named.gear[named.gear.push(null) - 1] = J(fa, [0.12, 0.35, 0.65], {
-        kind: 'acc', ord: 0, stow: { r: [H, 0, 0] }, robot: { r: [H, 0, 0] }, train: { r: [H, 0, 0] }, rocket: { r: [H, 0, 0] }, truck: { r: [H, 0, 0] }
+        kind: 'acc', ord: 0, stow: { r: [H, 0, 0] }, robot: { r: [H, 0, 0] }, train: { r: [H, 0, 0] }, rocket: { r: [H, 0, 0] }, truck: { r: [H, 0, 0] }, rover: 'stow'
       });
       ng.add(gear(0.5, 0.18, false));
     }
@@ -676,7 +683,8 @@ function buildRig(THREE, tex) {
   for (const s of [1, -1]) {
     const leg = J(root, [0, 0, 0], {
       ord: 1, robot: { p: [s * 0.14, 0, 0] }, truck: { p: [s * 0.5, 0.25, -7.5] }, tractor: { p: [s * 0.1, -0.1, -1.6], r: [0, -s * 0.3, 0] },
-      say: { robot: s > 0 ? 'Rear cabin splits into two legs' : null, truck: s > 0 ? 'Legs slide way back to carry the trailer' : null, tractor: s > 0 ? 'Back half slides out and becomes the plow' : null }
+      rover: { p: [-s * 0.62, -0.2, -0.15], r: [PI, 0, PI] },   // the same turn as half a turn around, but it swings up and over the top
+      say: { rover: s > 0 ? 'The back half splits and swings forward into two side pods' : null, robot: s > 0 ? 'Rear cabin splits into two legs' : null, truck: s > 0 ? 'Legs slide way back to carry the trailer' : null, tractor: s > 0 ? 'Back half slides out and becomes the plow' : null }
     });
     const thigh = J(leg, [0, 0, 0], { ord: 8, robot: { r: [-0.3, 0, 0] }, tractor: { r: [-0.16, 0, 0] }, say: { robot: s > 0 ? 'Knees flex into a battle stance' : null, tractor: s > 0 ? 'Plow tips down behind the tractor' : null } });
     (named.thighs = named.thighs || []).push(thigh);
@@ -718,7 +726,7 @@ function buildRig(THREE, tex) {
 
     // Tail fin halves: calves in robot, a flat roof spoiler on the train, splayed fins on the rocket
     const fj = J(knee, [0, 0.5, -0.6], {
-      kind: 'acc', ord: 2, robot: { p: [s * 0.2, -0.98, 0.2], S: [1, 0.62, 0.55] }, tractor: { p: [s * 0.2, -0.98, 0.2], S: [1, 0.62, 0.55] }, train: { p: [0, -1.45, 0] }, rocket: { r: [0, 0, -s * 0.7] },
+      kind: 'acc', ord: 2, robot: { p: [s * 0.2, -0.98, 0.2], S: [1, 0.62, 0.55] }, tractor: { p: [s * 0.2, -0.98, 0.2], S: [1, 0.62, 0.55] }, train: { p: [0, -1.45, 0] }, rocket: { r: [0, 0, -s * 0.7] }, rover: 'robot', first: { mode: 'rover', ord: 2 },
       say: { robot: s > 0 ? 'Tail fin halves slide away inside the shins' : null, train: s > 0 ? 'Tail fin slides down into the body' : null, truck: null,
              rocket: s > 0 ? 'Tail fins angle out for stability' : null }, stowSay: s > 0 ? 'Tail fin halves close up' : null
     });
@@ -738,7 +746,7 @@ function buildRig(THREE, tex) {
 
 
     const sj = J(foot, [s * 0.15, 0.1, -0.2], {
-      ord: 3.5, robot: { p: [(s > 0 ? 0.1 : -0.16) - s * 0.15, -s * 0.25 - 0.1, 0.95], r: [s * H, 0, -H] }, train: { r: [0, 0, -s * H] }, truck: { r: [0, -s * H, 0] }, tractor: { r: [0, 0, -s * 0.5] },
+      ord: 3.5, robot: { p: [(s > 0 ? 0.1 : -0.16) - s * 0.15, -s * 0.25 - 0.1, 0.95], r: [s * H, 0, -H] }, train: { r: [0, 0, -s * H] }, truck: { r: [0, -s * H, 0] }, tractor: { r: [0, 0, -s * 0.5] }, rover: 'robot',
       say: { robot: s > 0 ? 'Stabilizers fold away inside the ankles' : null, train: s > 0 ? 'Stabilizers fold down into a rear skirt' : null, truck: null }
     });
     sj.add(new THREE.Mesh(wingGeo(s, 1.3, 0.8, 0.3, 0.7, 0.06), M.white));
@@ -814,8 +822,8 @@ function buildRig(THREE, tex) {
 
   // ---------- head (the nose) ----------
   const head = J(root, [0, 0, 3.6], {
-    ord: 7, robot: { p: [0, -0.3, -1.3], r: [-H, 0, 0] }, train: { p: [0, 0, -0.95] }, truck: { p: [0, 0, -1.1] }, tractor: { p: [0, 0, -1.45] },
-    say: { tractor: 'Nose slides back under the tractor hood', robot: 'Nose folds back, revealing the face', plane: 'Face folds away into the nose', train: 'Nose slides back into the boiler, leaving a smokebox door', truck: 'Nose slides back under the hood', rocket: 'Face folds away into the nose cone' }
+    ord: 7, robot: { p: [0, -0.3, -1.3], r: [-H, 0, 0] }, train: { p: [0, 0, -0.95] }, truck: { p: [0, 0, -1.1] }, tractor: { p: [0, 0, -1.45] }, rover: { p: [0.3, 2.65, -0.15], r: [0, PI, 0], S: [0.75, 0.75, 0.75] }, late: { mode: 'rover', ord: 6 },
+    say: { rover: 'The nose rides up the mast and becomes the camera head', tractor: 'Nose slides back under the tractor hood', robot: 'Nose folds back, revealing the face', plane: 'Face folds away into the nose', train: 'Nose slides back into the boiler, leaving a smokebox door', truck: 'Nose slides back under the hood', rocket: 'Face folds away into the nose cone' }
   });
   const ngeo = new THREE.CylinderGeometry(0.1, 0.42, 1.1, 28); ngeo.rotateX(H); ngeo.translate(0, 0, 0.55);
   head.add(new THREE.Mesh(ngeo, M.white));
@@ -851,6 +859,13 @@ function planMorph(rig, to, fromMode) {
   const eq = (a, b) => a.P.every((v, i) => Math.abs(v - b.P[i]) < EPS) && a.R.every((v, i) => Math.abs(v - b.R[i]) < EPS) && a.S.every((v, i) => Math.abs(v - b.S[i]) < EPS);
   const copy = p => ({ P: p.P.slice(), R: p.R.slice(), S: p.S.slice() });
   const from = rig.cur.map(copy);
+  // bodyArc: {mode: height} lifts a body part up and over on its way into that mode (or out of it, when fromMode says so)
+  const bodyArc = (u, target) => {
+    if (!u.bodyArc) return 0;
+    if (u.bodyArc[target]) return u.bodyArc[target];
+    for (const m in u.bodyArc) if (fromMode === MODES.indexOf(m)) return u.bodyArc[m];
+    return 0;
+  };
   const target = MODES[to];
   const A = [], B = [], C = [];
   rig.joints.forEach((j, i) => {
@@ -858,10 +873,17 @@ function planMorph(rig, to, fromMode) {
     if (u.kind === 'pulse') return;
     const cur = from[i], tgt = u.poses[to];
     if (eq(cur, tgt)) return;
+    // late: {mode, ord} moves this part last on the way into that mode (after the parts it rides on are out),
+    // and first on the way out of it.
+    // first: {mode, ord} is the other way round: it tucks away before anything else moves.
+    if (u.late && target === u.late.mode) { C.push({ i, a: cur, b: tgt, ord: u.late.ord, label: u.say[target], w: 'light' }); return; }
+    if (u.late && fromMode === MODES.indexOf(u.late.mode)) { A.push({ i, a: cur, b: tgt, ord: 99, label: null, w: 'light' }); return; }
+    if (u.first && target === u.first.mode) { A.push({ i, a: cur, b: tgt, ord: u.first.ord, label: u.say[target], w: 'light' }); return; }
+    if (u.first && fromMode === MODES.indexOf(u.first.mode)) { C.push({ i, a: cur, b: tgt, ord: -1, label: null, w: 'light' }); return; }
     if (u.kind === 'acc') {
       if (!eq(cur, u.stow)) A.push({ i, a: cur, b: u.stow, ord: u.ord, label: u.stowSay, w: 'light', arc: u.arc, scale: 'last' });
       if (!eq(u.stow, tgt)) C.push({ i, a: u.stow, b: tgt, ord: u.ord, label: u.say[target], w: 'light', lock: u.lock, arc: u.arc, scale: u.arc ? 'first' : null });
-    } else B.push({ i, a: cur, b: tgt, ord: u.ord, label: u.say[target], w: 'heavy', lock: u.lock });
+    } else B.push({ i, a: cur, b: tgt, ord: u.ord, label: u.say[target], w: 'heavy', lock: u.lock, arc: bodyArc(u, target) });
   });
   // Parts sharing an `ord` move together; groups follow one another with overlap.
   const stagger = (list, t0, desc, per) => {

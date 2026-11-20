@@ -369,10 +369,13 @@ const watchAt = new THREE.Vector3();
 let roverK = 0;                                     // the camera leans toward the rover while it works
 
 // ---------- Skyfly turns into a rover (Jasper's idea: "Skyfly turns into a rover on mars") ----------
-// On the ground on Mars or the Moon, the plane changes into Skyfly, the same way it does at home, then drives a
-// slow loop around the landing spot and back. Pressing again drives home first, then changes back into the plane.
+// On the ground on Mars or the Moon, the plane changes into Skyfly the rover (Jasper's next change: "he's going to be
+// a real rover"): the back half flips forward into two side pods, the wings fold into a flat top deck, six wheels drop
+// down, and a chrome pole stretches up into a mast with the nose on top as the camera head. It's the rig's 'rover'
+// shape, so every part is the toy's own. Then it drives a slow loop around the landing spot and back. Pressing again
+// drives home first, then changes back into the plane.
 const SKY_R = 4.5, TAU = Math.PI * 2;
-const sky = { plan: null, t: 0, a: 0, v: 0, driveT: 0, wheels: null, laid: { mars: 0, moon: 0 }, cam: 0, pan: Math.PI, goT: 0, snapT: -1, shot: false, nextSnap: 5, photos: 0, n: { mars: 0, moon: 0 }, target: null };
+const sky = { plan: null, t: 0, a: 0, v: 0, driveT: 0, wheels: null, laid: { mars: 0, moon: 0 }, pan: Math.PI, goT: 0, snapT: -1, shot: false, nextSnap: 5, photos: 0, n: { mars: 0, moon: 0 }, target: null };
 const skyTracks = {};
 for (const [k, sc] of [['mars', mars.scene], ['moon', moonG.scene]]) {
   const g = new THREE.PlaneGeometry(0.5, 0.12); g.rotateX(-Math.PI / 2);
@@ -398,17 +401,15 @@ function runSkyfly(dt) {
   const ready = inside && (S.blend.door || 0) < 0.01 && (S.blend.gear || 0) < 0.01;   // door shut and wheels down first
   sky.v = 0;
   if (want && (sky.plan || ready)) {
-    if (!sky.plan) { sky.plan = planMorph(rig, 5, 0); sky.t = 0; sky.driveT = 0; sky.goT = 0; sky.nextSnap = 5; sky.snapT = -1; sfx.whirr(Math.min(sky.plan.T, 2.5)); }
+    if (!sky.plan) { sky.plan = planMorph(rig, 6, 0); sky.t = 0; sky.driveT = 0; sky.goT = 0; sky.nextSnap = 5; sky.snapT = -1; sfx.whirr(Math.min(sky.plan.T, 2.5)); }
     if (sky.t < sky.plan.T) step(dt);
-    else if (sky.cam < 1) { if (sky.cam === 0) sfx.whirr(1.4); sky.cam = Math.min(1, sky.cam + dt / 1.4); }   // the camera mast rises first
     else if (!runSnap(dt)) {
       if (!sky.wheels) measureWheels();
       sky.driveT += dt; sky.v = Math.min(1.2, (sky.goT += dt) * 0.8); sky.a += sky.v * dt / SKY_R;
     }
   } else if (sky.plan) {
     sky.snapT = -1; sky.shot = false;
-    if (sky.cam > 0) { if (sky.cam === 1) sfx.whirr(1.2); sky.cam = Math.max(0, sky.cam - dt / 1.2); }   // the camera folds away first
-    else if (sky.a > 0) {                               // drive back round to the landing spot first
+    if (sky.a > 0) {                               // drive back round to the landing spot first
       const goal = Math.ceil(sky.a / TAU - 1e-9) * TAU, left = (goal - sky.a) * SKY_R;
       sky.v = Math.min(1.2, left * 0.6 + 0.2); sky.a = Math.min(goal, sky.a + sky.v * dt / SKY_R);
       if (sky.a >= goal) { sky.a = 0; lastStampA = 0; }
@@ -418,23 +419,20 @@ function runSkyfly(dt) {
   S.groundDrive = sky.v;
   skyK += ((sky.plan ? 1 : 0) - skyK) * Math.min(1, dt * 0.8);
   if (sky.plan) poseRig(rig, sky.plan, sky.t, ease);
-  mast(dt);
+  aim(dt);
   if (sky.plan && sky.t <= 0) sky.plan = null;
 }
 
-// ---------- Skyfly's camera (Jasper's change: "Instead of skyfly being a tractor on mars it's a rover taking pictures") ----------
-// Real Mars rovers carry their cameras on a tall mast, so they can see over rocks. Skyfly's smokestack has nothing to
-// do on Mars (engines need oxygen), so it becomes the mast: the nose, which hides under the hood, rides up to the top
-// of the stack and turns its face forward. Every few turns of the loop Skyfly stops, the camera turns to look at
-// something, and click.
+// ---------- Skyfly's camera ----------
+// Jasper's change: "Instead of skyfly being a tractor on mars it's a rover takeing pictures of it". Every few turns of
+// the loop Skyfly stops, the camera head on top of its mast turns to look at something, and click.
 const SNAP = {
   mars: [{ at: () => rover.pos, up: 0.6, say: 'Click! Skyfly takes a picture of the rover. Hello, friend!' },
     { at: () => rover.oldAt, up: 0, say: 'Click! A picture of the old rover, asleep under the dust' },
     { at: () => _t.set(26, 4, -34), up: 0, say: 'Click! The red hills. A picture takes minutes to get from Mars to Earth' }],
   moon: [{ at: () => _t.set(-300 * Math.sin(1.42), 27, -300 * Math.cos(1.42)), up: 0, say: 'Click! A picture of Earth. That\'s home!' },
     { at: () => _t.set(24, 2, -30), up: 0, say: 'Click! The gray hills. From the Moon, a picture gets to Earth in about one second' }] };
-const _t = new THREE.Vector3(), _h = new THREE.Vector3(), _tl = new THREE.Vector3();
-let mastSet = false;
+const _t = new THREE.Vector3(), _tl = new THREE.Vector3();
 function runSnap(dt) {                             // true while Skyfly is stopped for a picture
   if (sky.snapT < 0) {
     if (sky.driveT < sky.nextSnap) return false;
@@ -445,25 +443,19 @@ function runSnap(dt) {                             // true while Skyfly is stopp
   if (sky.snapT > 4) { sky.snapT = -1; sky.nextSnap = sky.driveT + 8; sky.goT = 0; }
   return true;
 }
-function mast(dt) {                                // the nose rides up the smokestack and becomes the camera
-  if (!sky.plan || sky.cam <= 0) { if (mastSet) { rig.head.scale.setScalar(1); mastSet = false; } return; }
-  const head = rig.head, par = head.parent, k = ease(sky.cam);
-  flyer.updateMatrixWorld(true);
-  par.worldToLocal(rig.stack.localToWorld(_h.set(0, 0.34, 0)));
-  _h.y += 0.2;
-  let want = Math.PI;                              // face forward, unless it's turning to take a picture
+function aim(dt) {                                 // the camera head turns to face what it takes a picture of
+  if (!sky.plan || sky.t < sky.plan.T) { sky.pan = Math.PI; return; }
+  const head = rig.head;
+  let want = Math.PI;                              // facing forward
   if (sky.snapT >= 0 && sky.target) {
-    par.worldToLocal(_tl.copy(sky.target.at()));
-    want = Math.atan2(-(_tl.x - _h.x), -(_tl.z - _h.z));
+    flyer.updateMatrixWorld(true);
+    head.parent.worldToLocal(_tl.copy(sky.target.at()));
+    want = Math.atan2(-(_tl.x - head.position.x), -(_tl.z - head.position.z));
     while (want - sky.pan > Math.PI) want -= Math.PI * 2;
     while (want - sky.pan < -Math.PI) want += Math.PI * 2;
   }
   sky.pan += (want - sky.pan) * Math.min(1, dt * 2.5);
-  while (sky.pan > Math.PI * 2) sky.pan -= Math.PI * 2;
-  while (sky.pan < 0) sky.pan += Math.PI * 2;
-  head.position.lerp(_h, k);
-  head.rotation.x *= 1 - k; head.rotation.z *= 1 - k; head.rotation.y += (sky.pan - head.rotation.y) * k;
-  head.scale.setScalar(1 - 0.5 * k); mastSet = true;
+  head.rotation.y = sky.pan;
 }
 function takePhoto() {                             // click!
   sky.photos++; sfx.click();
@@ -608,7 +600,7 @@ function runPlanets(dt, sp) {
   }
   roverK += ((mars.active && !onMoon() && S.on.rover && mars.phase === 'ground' ? 1 : 0) - roverK) * Math.min(1, dt * 0.8);
   window.__planets = { at, to, travel: travelT, mars: mars.phase || (mars.active ? 'ground' : null), onMars: mars.active && !onMoon(), onMoon: mars.active && onMoon(), walkersOut: out,
-    skyfly: { on: !!sky.plan, t: sky.t, T: sky.plan ? sky.plan.T : 0, a: sky.a, v: sky.v, tracks: sky.laid[mars.where], cam: sky.cam, photos: sky.photos, snap: sky.snapT }, prints: moonG.laid,
+    skyfly: { on: !!sky.plan, t: sky.t, T: sky.plan ? sky.plan.T : 0, a: sky.a, v: sky.v, tracks: sky.laid[mars.where], cam: sky.plan && sky.t >= sky.plan.T ? 1 : 0, photos: sky.photos, snap: sky.snapT }, prints: moonG.laid,
     working: walkers.filter(w => w.mode === 'work').length,
     rover: { mode: rover.mode, stop: rover.stop, zaps: rover.zaps, spark: rover.spark.material.opacity, tubes: rover.tubes, tracks: rover.laid, arm: rover.armK } };
 }
@@ -620,15 +612,14 @@ const MOON_WALK = ['Hop hop! On the Moon you weigh one sixth as much, so astrona
 const MOON_FACTS = ['Twelve astronauts have walked on the Moon', 'Moon dust is as fine as flour, and it sticks to everything', 'A day on the Moon lasts about a month'];
 const MOON_GROUND = ['On the Moon! The sky is black even in the daytime, because the Moon has no air', 'That\'s Earth up there. From the Moon, Earth stays in the same spot in the sky', 'Shadows on the Moon are extra dark. There\'s no air to spread the light around', 'Tap Astronauts to go out and explore'];
 const SKY_DRIVE = {
-  mars: ['Skyfly, Mars rover! Real rovers keep their cameras up high on a mast, taller than a grown-up', 'Engines need oxygen to burn fuel. Mars air has almost none, so Skyfly runs on batteries', 'Skyfly\'s cab is sealed tight with air inside, so the driver doesn\'t need a space suit', 'Look at Skyfly\'s tire tracks in the dust'],
-  moon: ['Skyfly, Moon rover! Astronauts drove buggies on the Moon too, back in 1971 and 1972', 'There\'s no air at all on the Moon, so Skyfly runs on batteries, like the real Moon buggies', 'Skyfly\'s cab is sealed tight with air inside, so the driver doesn\'t need a space suit', 'Skyfly\'s tire tracks will stay on the Moon for a very long time. There\'s no wind to blow them away'] };
+  mars: ['Skyfly, Mars rover! Six wheels, a flat top, and a camera up high on a mast, like a real rover', 'Engines need oxygen to burn fuel. Mars air has almost none, so Skyfly runs on batteries', 'Real rovers have cameras low on the front too. They spot rocks before the wheels bump them', 'Real Mars rovers go slow and careful, slower than you walk', 'Look at Skyfly\'s tracks in the dust'],
+  moon: ['Skyfly, Moon rover! Astronauts drove buggies on the Moon too, back in 1971 and 1972', 'There\'s no air at all on the Moon, so Skyfly runs on batteries, like the real Moon buggies', 'The real Moon buggies had wire wheels. Rubber tires could crack in the Moon\'s cold', 'Skyfly\'s tracks will stay on the Moon for a very long time. There\'s no wind to blow them away'] };
 function skyCaption() {
   const place = onMoon() ? 'Moon' : 'Mars';
   if (S.on.skyfly && !sky.plan) return walkers.some(w => w.mode !== 'in') ? 'Astronauts, back inside! Then Skyfly can change' : 'Skyfly turns into a ' + place + ' rover!';
   if (!sky.plan) return '';
   if (!S.on.skyfly) return sky.a > 0 ? 'Skyfly drives back to the landing spot' : 'Skyfly turns back into the plane';
   if (sky.t < sky.plan.T) return sky.t < 1.2 ? 'Skyfly turns into a ' + place + ' rover!' : skyStepLabel() || 'Skyfly turns into a ' + place + ' rover!';
-  if (sky.cam < 1) return 'The smokestack becomes a camera mast. Up goes the camera!';
   if (sky.snapT >= 0 && sky.target) return sky.shot ? sky.target.say : 'Skyfly stops. The camera turns to look';
   const L = SKY_DRIVE[mars.where]; return L[Math.floor(sky.driveT / 6) % L.length];
 }
