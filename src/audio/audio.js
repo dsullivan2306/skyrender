@@ -110,6 +110,8 @@ const sfx = {
   drill: () => play(t => { tone(180, t, 2.6, 'square', 0.012, 200); noise(t, 2.6, 1400, 0.02, 'bandpass'); }),
   thump: () => play(t => tone(46, t, 0.5, 'sine', 0.09, 30)),   // a meteor lands on the Moon: no sound, but you feel it through your boots
   roverGo: () => play(t => tone(420, t, 0.6, 'sine', 0.02, 640)),
+  // a helicopter's engine lights with a click and a rising whine
+  heliStart: () => play(t => { noise(t, 0.08, 1800, 0.05, 'highpass'); tone(180, t + 0.1, 2.6, 'sine', 0.03, 900); }),
   deluge: () => play(t => { noise(t, 6, 900, 0.05, 'bandpass'); noise(t, 6, 2600, 0.02, 'highpass'); }),
   beep: hi => play(t => tone(hi ? 1046 : 784, t, hi ? 0.4 : 0.12, 'sine', 0.07)),
   size: up => play(t => { tone(up ? 90 : 520, t, 0.9, 'sawtooth', 0.05, up ? 420 : 110); tone(up ? 180 : 1040, t, 0.9, 'sine', 0.06, up ? 840 : 220); }),

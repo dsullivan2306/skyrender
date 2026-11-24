@@ -42,6 +42,12 @@ const measure = async (name, setup) => {
 const MODES = ['Plane', 'Robot', 'Train', 'Rocket', 'Truck', 'Tractor'];
 const results = [];
 for (const [i, m] of MODES.entries()) results.push(await measure(m, () => page.tap(`[data-mode="${i}"]`)));
+results.push(await measure('Helicopter', async () => {                     // flying over the trees
+  await page.tap('[data-mode="7"]'); await page.waitForTimeout(14000);
+  await page.evaluate(() => { Object.assign(window.__heli.C, { throttle: 1, lever: 0.7 }); }); await page.waitForTimeout(8000);
+  await page.evaluate(() => { Object.assign(window.__heli.C, { lever: 0.5, sy: 0.5, sx: 0.3 }); });
+}));
+results.push(await measure('Helicopter inside', async () => { await page.getByRole('button', { name: 'Sit inside', exact: true }).tap(); }));
 results.push(await measure('Truck crash', async () => { await page.tap('[data-mode="4"]'); await page.waitForTimeout(3500); await page.getByRole('button', { name: 'Crash!', exact: true }).tap(); }));
 results.push(await measure('Airport inside', async () => { await page.tap('[data-mode="0"]'); await page.waitForTimeout(3500); await page.getByRole('button', { name: 'Go inside airport', exact: true }).tap(); }));
 results.push(await measure('Space, astronauts', async () => {             // the telescope window and the photo draw the scene again

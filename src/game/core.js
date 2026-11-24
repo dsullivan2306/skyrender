@@ -37,7 +37,8 @@ const skipWhenHidden = function (force) { if (this.visible) THREE.Object3D.proto
 for (const set of [groundSet, homeSet, trackSet, airportSet, launchSet, roadSet, interSet, farmSet, hallSet, airportScenery, space, cloudSet, birdSet, fallers]) set.updateMatrixWorld = skipWhenHidden;
 Object.assign(linked, { go, buildActions, setButtons });   // bedtime (game/park.js) calls these back
 
-const skipBox = new Set(); rig.flames.forEach(g => g.traverse(o => { if (o.isMesh) skipBox.add(o); }));
+const skipBox = new Set(); [rig.heli.tilt, rig.heli.tailSpin].forEach(g => g.traverse(o => { if (o.isMesh) skipBox.add(o); }));   // turning blades don't move the camera
+rig.flames.forEach(g => g.traverse(o => { if (o.isMesh) skipBox.add(o); }));
 rig.jr.j.traverse(o => { if (o.isMesh) skipBox.add(o); });      // Jr. flies off on its own; don't frame or ground on it
 
 // Fun toggles for each mode. 'toggle' buttons stay on or off; 'press' buttons do something once.
@@ -48,7 +49,9 @@ const ACTIONS = [
   [{ id: 'whistle', label: 'Whistle', press: true }, { id: 'stop', label: 'Stop train' }, { id: 'lamp', label: 'Lamp off' }],
   [{ id: 'arm', label: 'Swing arm away' }, { id: 'launch', label: 'Launch now', press: true }],
   [{ id: 'horn', label: 'Air horn', press: true }, { id: 'smoke', label: 'Smokestacks' }, { id: 'tdoors', label: 'Open trailer' }, { id: 'jr', label: 'Launch Jr.' }, { id: 'lights', label: 'Lights' }, { id: 'inter', label: 'Interstate' }, { id: 'stop', label: 'Stop truck' }, { id: 'wreck', label: 'Crash!' }],
-  [{ id: 'honk', label: 'Honk', press: true }, { id: 'plow', label: 'Plow' }, { id: 'spray', label: 'Spray' }, { id: 'moo', label: 'Animal sounds', press: true }, { id: 'cab', label: 'Open cab' }, { id: 'lights', label: 'Lights' }, { id: 'stop', label: 'Stop tractor' }]
+  [{ id: 'honk', label: 'Honk', press: true }, { id: 'plow', label: 'Plow' }, { id: 'spray', label: 'Spray' }, { id: 'moo', label: 'Animal sounds', press: true }, { id: 'cab', label: 'Open cab' }, { id: 'lights', label: 'Lights' }, { id: 'stop', label: 'Stop tractor' }],
+  [],                          // the rover has no buttons of its own
+  [{ id: 'crew', label: 'Board the crew', press: true }, { id: 'inside', label: 'Sit inside' }, { id: 'door', label: 'Open door' }, { id: 'tail', label: 'Stop tail blades' }, { id: 'lights', label: 'Lights' }, { id: 'fhome', label: 'Fly home', press: true }]
 ];
 
 const center = new THREE.Vector3();
@@ -62,6 +65,7 @@ function startMorph(m) {
   if (m === 2) { S.trainT = 0; S.stationTravel = 0; }
   if (m === 4) { S.truckT = 0; }
   if (m === 5) { S.tractorT = 0; }
+  linked.heliReset();
   S.on = { size: 'medium' }; buildActions(-1);
   if (reduceMotion) S.tt = S.plan.T;
   sfx.whirr(Math.min(S.plan.T, 2.5));
@@ -88,7 +92,7 @@ function caption() {
   if (S.parkState === 1) return S.homeK < 1 ? 'Heading home...' : S.parkZ < 0.5 ? (S.parkRobot ? 'The front door opens' : 'The garage door rolls up') : S.parkZ < S.parkD - 0.1 ? (S.parkRobot ? 'Robot marches into his house' : 'Pulling into the garage') : 'Closing up for the night';
   if (S.parkState === 2) return S.parkRobot ? 'Robot is home. Sweet dreams!' : 'All parked. Sweet dreams!';
   if (S.parkState === 3) return 'Coming back out to play';
-  if (S.pending !== null) return S.plan.to === 0 ? 'Coming in to land' : 'Coming back down to the pad';
+  if (S.pending !== null) return S.plan.to === 7 ? 'Flying home to the landing pad first' : S.plan.to === 0 ? 'Coming in to land' : 'Coming back down to the pad';
   if (!settled()) {
     let text = 'Transforming';
     for (const s of S.paused ? S.plan.allSteps : S.plan.steps) if (S.tt >= s.at) text = s.label;   // scrubbing shows every step
@@ -96,6 +100,7 @@ function caption() {
   }
   if (S.plan.to === 0) return planeCaption();
   if (S.plan.to === 3) return launchCaption();
+  if (S.plan.to === 7) return linked.heliCaption();
   if (S.plan.to === 2) return S.trainT < 2.5 ? 'All aboard at Jasper Junction!' : !S.on.stop && crossingCaption() ? crossingCaption() : S.on.stop ? (S.trainSpeed > 0.5 ? 'Brakes on, slowing down' : 'Stopped on the tracks') : S.trainSpeed < 5 ? 'Departing the station' : 'Chugging down the tracks';
   if (S.plan.to === 5) return S.tractorT < 1.5 ? 'Skyfly the tractor, ready for farm work!' : S.on.plow ? (plowCaption() || 'Skyfly plows the field for Jasper\'s farm') : S.tractorSpeed < 0.3 ? 'Skyfly is parked by the pasture' : 'Skyfly rolls down the farm lane past the animals';
   if (S.plan.to === 4) return S.truckT < 1.5 ? 'Big rig mode. Buckle up!' : S.on.wreck ? 'Wrecked! Press Crash! again to rebuild' : S.jrPhase === 2 ? 'Skyrender Jr. flies loops around the big rig' : S.jrPhase === 4 ? 'Jr. lines up and lands back in the trailer' : (S.blend.inter || 0) > 0.5 ? 'Rolling down Interstate 65 toward Exit 5' : 'Hauling Skyrender freight down the country road';
@@ -109,7 +114,7 @@ function setButtons() { modeBtns.forEach(b => b.setAttribute('aria-pressed', Str
 modeBtns.forEach(b => b.addEventListener('click', () => go(+b.dataset.mode)));
 addEventListener('keydown', e => {
   if (e.target !== document.body) return;
-  if (e.key >= '1' && e.key <= '6') go(+e.key - 1);
+  if (e.key >= '1' && e.key <= '7') go(e.key === '7' ? 7 : +e.key - 1);
 });
 // ---------- season button ----------
 const seasonBtn = document.getElementById('season');
@@ -186,6 +191,7 @@ function doAction(a, b) {
   if (a.id === 'goin') { say(S.on.goin ? 'Skyrender rolls into the airport through the big glass doors' : 'Skyrender rolls back out to the runway', 2.4); if ((S.on.goin || S.on.peek) && S.planeT > 0) { S.pending = 0; setButtons(); } }
   if (a.id === 'peek' && S.on.peek && S.planeT > 0) { S.pending = 0; setButtons(); }
   if (a.id === 'board') requestPark();
+  if (S.plan.to === 7) linked.heliAct(a.id);
   if (a.id === 'meteors') { if (linked.planetUI().landed) linked.meteorButton(); else S.meteorStorm = true; }   // the meteors keep falling when he lands on the Moon
   if (a.id === 'stuck' || a.id === 'fight') linked.stormButton(a.id);
   if (a.id === 'space' || (a.id === 'meteors' && !linked.planetUI().landed) || (a.id === 'astro' && !linked.planetUI().landed)) linked.moonAction(a.id);
@@ -221,6 +227,7 @@ function doAction(a, b) {
 // The scrubber drags back and forth through the current transformation and holds where you leave it.
 scrub.addEventListener('input', () => {
   if (S.pending !== null) return;
+  if (S.plan.to === 7) linked.heliReset();
   S.scrubbing = true; S.paused = true; S.launchT = 0; S.planeT = 0; S.trainT = 0;
   S.tt = scrub.value / 1000 * S.plan.T;
 });
@@ -228,15 +235,16 @@ scrub.addEventListener('change', () => { S.scrubbing = false; });
 
 let fitScale = 1;
 let theta = 0.9, phi = 1.15, radius = 17, dragging = false, lastX = 0, lastY = 0, idle = 0;
-stage.addEventListener('pointerdown', e => { if (linked.cab.active) { linked.cabPointerDown(e); stage.setPointerCapture(e.pointerId); return; } dragging = true; lastX = e.clientX; lastY = e.clientY; stage.setPointerCapture(e.pointerId); });
+stage.addEventListener('pointerdown', e => { if (linked.cab.active) { linked.cabPointerDown(e); stage.setPointerCapture(e.pointerId); return; } if (linked.heliInside()) { linked.heliPointer('down', e); stage.setPointerCapture(e.pointerId); return; } dragging = true; lastX = e.clientX; lastY = e.clientY; stage.setPointerCapture(e.pointerId); });
 stage.addEventListener('pointermove', e => {
   if (linked.cab.active) { linked.cabPointerMove(e); return; }
+  if (linked.heliInside()) { linked.heliPointer('move', e); return; }
   if (!dragging) return;
   theta -= (e.clientX - lastX) * 0.008;
   phi = Math.min(1.5, Math.max(0.25, phi - (e.clientY - lastY) * 0.006));
   lastX = e.clientX; lastY = e.clientY; idle = 0;
 });
-stage.addEventListener('pointerup', e => { dragging = false; if (linked.cab.active) linked.cabPointerUp(e); });
+stage.addEventListener('pointerup', e => { dragging = false; if (linked.cab.active) linked.cabPointerUp(e); else if (linked.heliInside()) linked.heliPointer('up', e); });
 stage.addEventListener('wheel', e => { e.preventDefault(); if (linked.cab.active) { linked.cabWheel(e); return; } radius = Math.min(32, Math.max(8, radius + e.deltaY * 0.012)); }, { passive: false });
 
 function resize() {
@@ -290,7 +298,7 @@ function frame() {
   if (S.pending !== null) {
     if (S.plan.to === 3) S.launchT = Math.max(0, S.launchT - sdt * 4);
     if (S.plan.to === 0 && S.planeAlt <= 0) S.planeT = Math.max(0, S.planeT - sdt * (S.planeT > PLANE_LIFT ? 2.5 : 1.2));   // down from space first
-    const down = S.plan.to === 3 ? S.launchT === 0 : S.planeT <= 0;
+    const down = S.plan.to === 7 ? !S.heliAway : S.plan.to === 3 ? S.launchT === 0 : S.planeT <= 0;
     if (down) { const m = S.pending; S.pending = null; S.launchT = 0; S.planeT = 0; if (m !== S.plan.to) startMorph(m); else setButtons(); }
   } else if (!S.paused && S.tt < S.plan.T) {
     const tt0 = S.tt;
@@ -305,12 +313,14 @@ function frame() {
   runPark(dt); runHall(dt);
   applyToggles(dt);
   linked.noseTuck(); linked.runBoarding(dt);
+  linked.heliPose();
 
   // ---- the world blends along with the transformation ----
   const k = ease(clamp01(S.tt / S.plan.T)), goal = ENV[S.plan.to];
   for (const key in S.env) S.env[key] = S.envFrom[key] + (goal[key] - S.envFrom[key]) * k;
   const live = settled() && !S.paused && !S.parkState;
 
+  linked.runHeli(dt, sdt, live);              // the helicopter (heli/heli.js)
   const air = runPlane(sdt, live);            // 0 on the ground, 1 cruising above the clouds
 
   let { onPad, sp } = startRocket(sdt, live);
@@ -383,17 +393,17 @@ function frame() {
   showActions(sp);          // the huge Moon, meteors and astronauts (space/moontrip.js)
 
   runEngines(dt, onPad, sp);
-  rig.M.glow.emissiveIntensity = 0.35 + 2.5 * S.thrust + 0.6 * S.planeSpeed / 28;
-  const lampOn = (S.env.track > 0.5 && !S.on.lamp) || ((S.plan.to === 4 || S.plan.to === 5) && S.on.lights && !S.on.wreck);
+  rig.M.glow.emissiveIntensity = 0.35 + 2.5 * S.thrust + 0.6 * S.planeSpeed / 28 + 0.7 * S.heliRpm;
+  const lampOn = (S.env.track > 0.5 && !S.on.lamp) || ((S.plan.to === 4 || S.plan.to === 5 || S.plan.to === 7) && S.on.lights && !S.on.wreck);
   rig.M.marker.emissiveIntensity = (S.plan.to === 4 || S.plan.to === 5) && S.on.lights ? (S.on.wreck ? (Math.sin(S.clockT * 8) > 0 ? 2.5 : 0.1) : 1.8) : 0.35;   // hazards blink after a crash
   rig.M.tail.emissiveIntensity = S.plan.to === 4 && S.on.lights ? 1.6 : 0.5;
   rig.M.head.emissiveIntensity = lampOn ? 2.2 : 0;
   rig.M.head.color.setHex(lampOn ? 0xfff6dc : 0x6e6c66);             // an unlit lens is dull grey, not white
   const nk = ease(clamp01(S.nightK));
   beam.intensity += ((lampOn ? 3.2 * nk : 0) - beam.intensity) * Math.min(1, dt * 6);
-  const strobe = S.plan.to === 0 && S.on.lights && Math.sin(S.clockT * 12) > 0.6;
+  const strobe = (S.plan.to === 0 || S.plan.to === 7) && S.on.lights && Math.sin(S.clockT * 12) > 0.6;
   rig.M.navR.emissiveIntensity = rig.M.navG.emissiveIntensity = strobe ? 3 : 0.6;
-  rig.M.beacon.emissiveIntensity = S.plan.to === 0 && S.on.lights ? (Math.sin(S.clockT * 7) > 0 ? 2.5 : 0.2) : 0.8;
+  rig.M.beacon.emissiveIntensity = (S.plan.to === 0 || S.plan.to === 7) && S.on.lights ? (Math.sin(S.clockT * 7) > 0 ? 2.5 : 0.2) : 0.8;
   runCountdown(onPad);
 
   runLaunchSmoke(onPad); runDeluge(sdt, onPad);
@@ -422,6 +432,7 @@ function frame() {
   if (S.hop > 0) { S.hop = Math.max(0, S.hop - dt * 1.8); flyer.position.y += Math.abs(Math.sin(S.hop * Math.PI * 3)) * 0.18 * S.hop; }
   const mv = linked.marsView();
   if (mv.on) { flyer.position.y = mv.y; flyer.rotation.x = flyer.rotation.z = 0; flyer.position.x += mv.fx; flyer.position.z += mv.fz; flyer.rotation.y += mv.yaw; }   // landed on Mars or the Moon: resting on its wheels (or driving as Skyfly)
+  linked.placeHeli(flyer, beam);                           // the helicopter, wherever Jasper is flying it
   center.y += flyer.position.y;
 
   // Petals, leaves or snow drift down around the toy (not up in the sky)
@@ -443,7 +454,7 @@ function frame() {
 
   runPuffs(sdt);
 
-  for (const f of rig.fans) f.rotation.z += dt * (5 + 14 * S.planeSpeed / 28 + 10 * air);
+  for (const f of rig.fans) f.rotation.z += dt * (5 + 14 * S.planeSpeed / 28 + 10 * air + 12 * S.heliRpm);
   // ---- sound: rushing air, engines, jet whine, and each world's quiet background ----
   {
     const inCab = linked.cab.active, cabEng = linked.cab.engine || 0;
@@ -451,14 +462,15 @@ function frame() {
     const roar = inCab ? 0 : S.thrust * (1 - sp) + (onPad && S.launchT > 2 && S.launchT < 3 ? 0.2 * (S.launchT - 2) : 0);
     const jet = S.plan.to === 0 && !inCab ? 0.25 * Math.min(1, S.planeSpeed / 28 + air) : 0;
     const truckOn = S.plan.to === 4 && settled() && !S.on.wreck && !S.parkState, tractorOn = S.plan.to === 5 && settled() && !S.parkState;
-    const spool = inCab ? cabEng : S.plan.to === 0 ? Math.min(1, S.planeSpeed / 28 + air) : 0;
+    const rotor = inCab ? 0 : S.heliRpm;                   // a helicopter chops: each blade slaps the air as it comes by
+    const spool = inCab ? cabEng : rotor > 0 ? rotor * 0.45 : S.plan.to === 0 ? Math.min(1, S.planeSpeed / 28 + air) : 0;
     const ground = !inCab && S.alt < 30 && air < 0.5;
     setMix({
-      roar: inCab ? 0.1 + 0.35 * cabEng : Math.min(0.9, roar * 0.8 + jet),
+      roar: inCab ? 0.1 + 0.35 * cabEng : Math.min(0.9, roar * 0.8 + jet + 0.1 * rotor),
       rumbleHz: roar > 0.05 ? 260 + 300 * roar : jet > 0.05 ? 900 : 140,
       // diesels thump because each cylinder fires in turn; the slow tractor thumps slower
-      engHz: truckOn ? 30 + 50 * Math.min(1, S.truckSpeed / 16) : 20 + 15 * Math.min(1, S.tractorSpeed / 3.6) + Math.sin(S.clockT * 7) * 1.5,
-      eng: truckOn ? 0.6 + 0.4 * Math.min(1, S.truckSpeed / 16) : tractorOn ? 0.7 : 0,
+      engHz: rotor > 0 ? 4 + 9 * rotor : truckOn ? 30 + 50 * Math.min(1, S.truckSpeed / 16) : 20 + 15 * Math.min(1, S.tractorSpeed / 3.6) + Math.sin(S.clockT * 7) * 1.5,
+      eng: rotor > 0 ? 1.1 * c01(rotor * 2) : truckOn ? 0.6 + 0.4 * Math.min(1, S.truckSpeed / 16) : tractorOn ? 0.7 : 0,
       whineHz: 1800 + 1700 * spool, whine: spool > 0.02 ? 0.4 + 0.6 * spool : 0,
       wind: !inCab && air > 0.3 && sp < 0.5 ? air * (1 - 2 * sp) : 0,
       birds: ground && !S.night ? (S.env.farm > 0.5 ? 0.9 : 0.5) : 0,
@@ -480,10 +492,13 @@ function frame() {
   const tallest = box.max.y - box.min.y;
   const span = Math.max(box.max.x - box.min.x, box.max.z - box.min.z);
   const want = Math.max(1, 0.7 * tallest / Math.tan(camera.fov * Math.PI / 360) / 17, span / 11, 1 + 1.0 * sm(S.homeK)) * (1 - sm(S.viewK)) + 1.7 * sm(S.viewK);
-  fitScale += (want * (1 + 0.25 * xk + 0.15 * rk + 0.8 * (mvr.on ? sm(mvr.sk) : 0)) - fitScale) * (1 - Math.exp(-dt * 2));
+  fitScale += (want * (1 + 0.25 * xk + 0.15 * rk + 0.8 * (mvr.on ? sm(mvr.sk) : 0) + linked.heliView().zoom) - fitScale) * (1 - Math.exp(-dt * 2));
   idle += dt;
   if (!dragging && idle > 2 && !reduceMotion && S.homeK < 0.01) {
-    if (settled() && S.plan.to === 0 && sp > 0.5) {   // in space, the plane turns so the huge Moon is right behind it
+    const hv = linked.heliView();
+    if (hv.on && hv.chase) {                          // flying the helicopter: the camera follows behind its tail
+      const d = ((hv.yaw + Math.PI - 0.3 - theta) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI; theta += d * Math.min(1, dt * 1.8); phi += (1.18 - phi) * Math.min(1, dt * 0.6);
+    } else if (settled() && S.plan.to === 0 && sp > 0.5) {   // in space, the plane turns so the huge Moon is right behind it
       const tw = linked.marsView().on ? 1.25 : 0.6;     // on Mars, a side view of the door and the astronauts at work
       const d = ((tw - theta) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI; theta += d * Math.min(1, dt * 0.5);
     } else if (settled() && xk > 0.05) {               // at the crossing, a front three-quarter view from the car's side
@@ -508,7 +523,7 @@ function frame() {
     target3.y + rr * Math.cos(ph),
     target3.z + rr * Math.sin(ph) * Math.cos(theta));
   camera.lookAt(target3);
-  if (linked.cab.active) { linked.updateCabin(dt); renderer.render(linked.cabinScene, linked.cabinCam); } else if (linked.marsView().on) { renderer.render(linked.marsView().scene, camera); linked.drawSnap(); } else { renderer.render(scene, camera); linked.drawMoonViews(); }
+  if (linked.cab.active) { linked.updateCabin(dt); renderer.render(linked.cabinScene, linked.cabinCam); } else if (linked.heliInside()) linked.drawHeli(); else if (linked.marsView().on) { renderer.render(linked.marsView().scene, camera); linked.drawSnap(); } else { renderer.render(scene, camera); linked.drawMoonViews(); }
   requestAnimationFrame(frame);
 }
 // Start the toy: called by main.js once every module is built and linked.

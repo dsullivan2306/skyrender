@@ -25,5 +25,7 @@ import './ideas/ideas.js';
 import * as moonTrip from './space/moontrip.js';  // Jasper's first idea: the huge Moon, meteors and astronauts
 import * as planets from './space/planets.js';    // Jasper's second idea: all the planets, flying to them, landing on Mars
 
-link({ ...truck, ...cabin, ...moonTrip, ...planets });
+import * as heli from './heli/heli.js';             // Jasper's helicopter: flying it, the valley, the crew, the cockpit
+
+link({ ...truck, ...cabin, ...moonTrip, ...planets, ...heli });
 start();

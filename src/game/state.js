@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { buildRig, planMorph } from '../rig/rig.js';
+import { buildRig, planMorph, quietly } from '../rig/rig.js';
 import { scene } from '../world/setup.js';
 import { makeTextures } from '../rig/textures.js';
 import { BufferGeometryUtils } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -32,9 +32,9 @@ function mergeFixedParts(rig) {
   for (const list of groups.values()) {
     before += list.length;
     if (list.length < 2) { after += list.length; continue; }
-    const geo = BufferGeometryUtils.mergeBufferGeometries(list.map(o => o.geometry.clone().applyMatrix4(o.matrix)));
-    if (!geo) { after += list.length; continue; }
-    const m = new THREE.Mesh(geo, list[0].material);
+    const join = () => { const geo = BufferGeometryUtils.mergeBufferGeometries(list.map(o => o.geometry.clone().applyMatrix4(o.matrix))); return geo && new THREE.Mesh(geo, list[0].material); };
+    const m = list[0].userData.heli ? quietly(join) : join();      // the helicopter's parts keep their own random numbers (rig.js)
+    if (!m) { after += list.length; continue; }
     m.castShadow = list[0].castShadow; m.receiveShadow = list[0].receiveShadow; m.renderOrder = list[0].renderOrder;
     const parent = list[0].parent; for (const o of list) parent.remove(o); parent.add(m);
     after++;
@@ -69,7 +69,9 @@ const ENV = [
   { runway: 0, track: 1, pad: 0, launch: 0, road: 0, farm: 0 },   // train: at Jasper Junction
   { runway: 0, track: 0, pad: 0, launch: 1, road: 0, farm: 0 },   // rocket: Jasper Spaceport
   { runway: 0, track: 0, pad: 0, launch: 0, road: 1, farm: 0 },   // truck: country road
-  { runway: 0, track: 0, pad: 0, launch: 0, road: 0, farm: 1 }    // tractor: Jasper's farm
+  { runway: 0, track: 0, pad: 0, launch: 0, road: 0, farm: 1 },   // tractor: Jasper's farm
+  { runway: 1, track: 0, pad: 0, launch: 0, road: 0, farm: 0 },   // rover: never a place of its own (it's on Mars or the Moon)
+  { runway: 0, track: 0, pad: 1, launch: 0, road: 0, farm: 0 }    // helicopter: on the landing pad
 ];
 
 const S = {
@@ -94,6 +96,8 @@ const S = {
   tractorT: 0, tractorSpeed: 0, farmTravel: 0, plowDust: 0, tractorPuff: 0, sprayClock: 0,
   // Skyrender Jr.
   jrPhase: 0, jrU: 0, jrLoop: 0, jrW: 0, jrDoor: 0,
+  // helicopter (heli/heli.js): away from the pad or blades still turning, and how fast the blades spin
+  heliAway: false, heliRpm: 0,
   // toggles: which are switched on, and how far each has animated
   on: { size: 'medium' }, blend: {},
   // robot
@@ -116,7 +120,7 @@ const box = new THREE.Box3();           // the toy's bounding box this frame, me
 
 const settled = () => S.tt >= S.plan.T;
 const targetMode = () => S.pending ?? S.plan.to;
-const airborne = () => settled() && ((S.plan.to === 3 && S.launchT > 4.5) || (S.plan.to === 0 && S.planeT > 2));
+const airborne = () => settled() && ((S.plan.to === 3 && S.launchT > 4.5) || (S.plan.to === 0 && S.planeT > 2) || (S.plan.to === 7 && S.heliAway));
 function say(text, secs = 1.6) { S.flash = { text, until: S.clockT + secs }; }
 
 export { ENV, S, box, airborne, c01, clamp01, ease, flyer, lerp, lerpJ, linked, rig, say, settled, sm, targetMode, wrap };

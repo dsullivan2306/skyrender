@@ -262,7 +262,7 @@ function restoreBlocks(ud) { if (ud.base) ud.blocks.forEach((b, i) => b.position
 // Crash: every big piece hanging off the body flies off on its own arc, tumbles and lands nearby.
 // Pressing it again plays the same arcs backward, so everything snaps back where it belongs.
 const fly = [], _q = new THREE.Quaternion(), _v = new THREE.Vector3(), _c = new THREE.Vector3();
-for (const j of rig.joints) if (j.parent === rig.joints[0] && !(j.userData.ord === 10)) fly.push({ j });   // the passengers' seats stay put
+for (const j of rig.joints) if (j.parent === rig.joints[0] && !(j.userData.ord === 10) && !j.userData.heliOnly) fly.push({ j });   // the passengers' seats stay put
 // A fresh roll of the dice for every crash: which way it skids, how hard, and what flies where
 function scatter(dir) {
   const R = Math.random, bias = dir ?? R() * 6.283, bw = dir == null ? R() * 0.7 : 0.45 + R() * 0.3, power = 0.6 + R() * 0.9;

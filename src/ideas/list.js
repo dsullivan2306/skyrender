@@ -18,4 +18,6 @@ export const IDEAS = [
     when: '2026-11-20', what: 'On Mars and the Moon, Skyfly changes into a real rover: six wheels, a flat top, and a camera on a mast' },
   { words: 'When Jasper presses meteors and then goes on the moon there will still be meteors and the astronauts will be stuck or fighting there are buttons for both of those things',
     when: '2026-11-23', what: 'Press Meteors, then land on the Moon: they keep falling. Tap Fight meteors to bump them away, or Astronauts stuck, then help them out' },
+  { words: 'Skyrender is going to be a great amazing helicopter and the crew will be boarding just like the plane and I will control the flight and blade',
+    when: '2026-11-24', what: 'Tap Helicopter. Board the crew, sit in the pilot\u2019s seat, and fly it yourself: you run the blades, the lift, the stick and the tail' },
 ];

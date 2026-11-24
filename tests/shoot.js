@@ -6,7 +6,7 @@
 // A scenario exports default async ({ page, step, shot, drag, click, act }) => {}.
 //   step(n)   advance the game clock n frames of 50 ms (the clock is stepped, so runs are repeatable)
 //   shot(nm)  screenshot to tests/shots/<nm>.png and print the caption line
-//   click(m)  press mode button m (0 plane, 1 robot, 2 train, 3 rocket, 4 truck, 5 tractor)
+//   click(m)  press mode button m (0 plane, 1 robot, 2 train, 3 rocket, 4 truck, 5 tractor, 7 helicopter)
 //   act(lbl)  press a button by its visible label
 // Prints "errors [...]" at the end: any page error is a failure.
 import { chromium, webkit } from 'playwright';

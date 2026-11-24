@@ -4,7 +4,14 @@
 // hinge into place, then the new mode's accessories deploy.
 // 'rover' is Skyfly's Mars and Moon shape. It has no mode button: Skyfly changes into it only on the ground on
 // Mars or the Moon. A joint's pose for a mode can name another mode ("rover: 'train'") to borrow that pose.
-const MODES = ['plane', 'robot', 'train', 'rocket', 'truck', 'tractor', 'rover'];
+// 'heli' is the helicopter (Jasper's idea). Its mode button is number 7.
+const MODES = ['plane', 'robot', 'train', 'rocket', 'truck', 'tractor', 'rover', 'heli'];
+
+// three.js names every part it makes with Math.random. Parts made inside quietly() use their own numbers instead,
+// so adding them doesn't change anything random that's built afterwards (and the exact-screenshot tests stay exact).
+let qseed = 0x7a2430;
+const qrnd = () => { qseed = (qseed + 0x6D2B79F5) | 0; let x = Math.imul(qseed ^ (qseed >>> 15), 1 | qseed); x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x; return ((x ^ (x >>> 14)) >>> 0) / 4294967296; };
+function quietly(fn) { const keep = Math.random; Math.random = qrnd; try { return fn(); } finally { Math.random = keep; } }
 
 function buildRig(THREE, tex) {
   const H = Math.PI / 2, PI = Math.PI;
@@ -266,6 +273,8 @@ function buildRig(THREE, tex) {
   const named = { gear: [], hatch: [] };
   // Rover wheels: where the six driving wheels hang (x out from their pivots, height, front-to-back spots)
   const RV = { dx: 0.6, y: -0.55, z: [0.3, 1.75, 3.2] };
+  // Helicopter: how far the wings sweep on the roof, where the engines and tail sit
+  const HE = { psi: 1.22, wz: 0.62, ex: 0.099, ez: 0.27, fin: -2.95, stab: -1.15 };
   let stackJ = null;
 
   // =====================================================================
@@ -301,7 +310,7 @@ function buildRig(THREE, tex) {
   // Main gear (down in plane mode) and its bay doors, which open only while the wheels pass through
   for (const s of [1, -1]) {
     const g = named.gear[named.gear.push(null) - 1] = J(root, [s * 0.35, -0.15, 0.9], {
-      kind: 'acc', ord: 0, stow: { r: [H, 0, 0] }, robot: { r: [H, 0, 0] }, train: { r: [H, 0, 0] }, rocket: { r: [H, 0, 0] }, truck: { p: [s * 0.4, -0.15, -3.8], r: [0, 0, 0] }, rover: 'stow',
+      kind: 'acc', ord: 0, stow: { r: [H, 0, 0] }, robot: { r: [H, 0, 0] }, train: { r: [H, 0, 0] }, rocket: { r: [H, 0, 0] }, truck: { p: [s * 0.4, -0.15, -3.8], r: [0, 0, 0] }, rover: 'stow', heli: 'stow',
       say: { plane: s > 0 ? 'Landing gear swings down' : null, truck: s > 0 ? 'Plane landing gear becomes the trailer\'s landing legs' : null }, stowSay: s > 0 ? 'Landing gear swings up into the belly' : null
     });
     g.add(gear(0.55, 0.2, true));
@@ -315,7 +324,7 @@ function buildRig(THREE, tex) {
     driverSet(root, s, [s * 0.3, 0, 1.3], null, null, null, null, { hg: [s * RV.dx, RV.y, RV.z[1] - 1.3] });
     driverSet(root, s, [s * 0.3, 0, 0.4], null, -2.3, null, { hg: [s * 0.35, -0.15, -1.15], wj: [s * 0.4, -0.15, 0], R: 0.6, tube: 0.22, label: s > 0 ? 'Big back wheels swing out' : null, tireLabel: s > 0 ? 'Giant tractor tires pump up' : null }, { hg: [s * RV.dx, RV.y, RV.z[0] - 0.4], label: s > 0 ? 'Six wheels drop down, three on each side' : null });
     // Side rod: ties the three driving wheels together; it rides around with the crank pins
-    const rod = J(root, [s * 0.3, 0, 0.9], { kind: 'acc', ord: 1.5, train: { p: [s * 0.15, -0.79, 0.4] }, say: { train: s > 0 ? 'Side rods hook the driving wheels together' : null } });
+    const rod = J(root, [s * 0.3, 0, 0.9], { kind: 'acc', ord: 1.5, train: { p: [s * 0.15, -0.79, 0.4] }, heli: { p: [s * 0.47, -1.02, 0.1] }, say: { train: s > 0 ? 'Side rods hook the driving wheels together' : null, heli: s > 0 ? 'The train\'s side rods become landing skids' : null } });
     rod.add(box(0.04, 0.07, 1.86, M.steel), box(0.05, 0.1, 0.1, M.brass, 0, 0, 0.9), box(0.05, 0.1, 0.1, M.brass, 0, 0, 0), box(0.05, 0.1, 0.1, M.brass, 0, 0, -0.9));
     rods.push({ j: rod, phase: s > 0 ? 0 : H });
   }
@@ -560,26 +569,28 @@ function buildRig(THREE, tex) {
     const w = J(root, [s * 0.5, -0.2, 0.9], {
       order: 'ZYX', ord: 4,
       plane: { r: [0, 0, s * 0.06] }, tractor: { p: [0, 0.9, -3.1], r: [0, 0, s * 0.03] }, robot: { r: [0, 0, s * 1.5] }, rocket: { r: [0, s * 0.73, 0] },
-      train: { p: [s * 0.12, 0.6, -0.12], r: [0, s * 1.384, s * H] }, truck: { p: [-s * 0.5, s > 0 ? 0.8 : 0.84, -3.0], r: [0, s * 1.384, 0] }, rover: { p: [-s * 0.215, s > 0 ? 0.8 : 0.84, -1.17], r: [0, -s * 1.757, 0] }, bodyArc: { rover: 0.7 },
+      train: { p: [s * 0.12, 0.6, -0.12], r: [0, s * 1.384, s * H] }, truck: { p: [-s * 0.5, s > 0 ? 0.8 : 0.84, -3.0], r: [0, s * 1.384, 0] }, rover: { p: [-s * 0.215, s > 0 ? 0.8 : 0.84, -1.17], r: [0, -s * 1.757, 0] }, heli: { p: [-s * 0.5, s > 0 ? 0.73 : 0.765, HE.wz], r: [0, s * HE.psi, s * PI] }, bodyArc: { rover: 0.7 },
       say: { robot: s > 0 ? 'Wings hinge back into a jet pack' : null, plane: s > 0 ? 'Wings swing out wide' : null,
-             train: s > 0 ? 'Wings sweep back into the coal tender walls' : null, truck: s > 0 ? 'Wings fold flat and ride inside the trailer as cargo' : null, rocket: s > 0 ? 'Wings sweep back into big rocket fins' : null, tractor: s > 0 ? 'Wings slide back into long sprayer booms' : null, rover: s > 0 ? 'Wings fold forward into a flat top deck' : null }
+             train: s > 0 ? 'Wings sweep back into the coal tender walls' : null, truck: s > 0 ? 'Wings fold flat and ride inside the trailer as cargo' : null, rocket: s > 0 ? 'Wings sweep back into big rocket fins' : null, tractor: s > 0 ? 'Wings slide back into long sprayer booms' : null, rover: s > 0 ? 'Wings fold forward into a flat top deck' : null, heli: s > 0 ? 'Wings flip up and over, onto the roof' : null }
     });
     (named.wings = named.wings || []).push({ j: w, s });
     w.add(new THREE.Mesh(wingGeo(s, 3.7, 1.8, 0.5, 2.0, 0.09), M.white));
-    w.add(box(0.08, 0.22, 0.7, M.grey, s * 1.1, -0.14, 0.3));                              // pylon
+    const pa = -s * HE.psi, pc = Math.cos(pa), ps = Math.sin(pa);      // it turns with its engine, about its own middle
+    const pylon = quietly(() => J(w, [0, 0, 0], { ord: 4.5, heli: { p: [s * 1.1 - s * HE.ex - (s * 1.1 * pc + 0.3 * ps), 0.12, 0.3 - HE.ez - (-s * 1.1 * ps + 0.3 * pc)], r: [0, pa, 0] } }));
+    pylon.add(box(0.08, 0.22, 0.7, M.grey, s * 1.1, -0.14, 0.3));                              // pylon
     w.add(decal(tex && tex.emblem, 0.8, 0.8, [s * 2.05, -0.052, -0.78], [0, -1, 0], [0, 0, 1]));
     w.add(decal(tex && tex.emblem, 0.8, 0.8, [s * 1.6, 0.052, -0.55], [0, 1, 0], [s, 0, 0]));
 
     // Flap: hinged along the trailing edge, lowered for landing
     const fx = 1.4, fz = -0.9 - teSlope * fx;
     const fh = new THREE.Group(); fh.position.set(s * fx, 0, fz); fh.rotation.y = s * Math.atan(teSlope); w.add(fh);
-    const flap = J(fh, [0, 0, 0], { kind: 'acc', ord: 1, plane: { r: [-0.6, 0, 0] }, stow: { r: [0, 0, 0] }, robot: { r: [0, 0, 0] }, train: { r: [0, 0, 0] }, rocket: { r: [0, 0, 0] }, truck: { r: [Math.PI, 0, 0] }, rover: 'stow', say: { plane: s > 0 ? 'Flaps lower for landing' : null }, stowSay: s > 0 ? 'Flaps tuck in' : null });
+    const flap = J(fh, [0, 0, 0], { kind: 'acc', ord: 1, plane: { r: [-0.6, 0, 0] }, stow: { r: [0, 0, 0] }, robot: { r: [0, 0, 0] }, train: { r: [0, 0, 0] }, rocket: { r: [0, 0, 0] }, truck: { r: [Math.PI, 0, 0] }, rover: 'stow', heli: 'stow', say: { plane: s > 0 ? 'Flaps lower for landing' : null }, stowSay: s > 0 ? 'Flaps tuck in' : null });
     flap.add(box(1.6, 0.03, 0.34, M.white, 0, 0, -0.17), box(1.6, 0.012, 0.02, M.dark, 0, 0.02, -0.01));
 
     // Winglet: folds flat for robot and train
     const wl = J(w, [s * 3.7, 0.02, -1.35], {
       kind: 'acc', ord: 1.5, plane: { r: [0, 0, -s * 0.3] }, stow: { r: [0, 0, -s * H] },
-      robot: { r: [0, 0, -s * H] }, train: { r: [0, 0, -s * H] }, truck: { r: [0, 0, -s * H] }, rover: 'stow',
+      robot: { r: [0, 0, -s * H] }, train: { r: [0, 0, -s * H] }, truck: { r: [0, 0, -s * H] }, rover: 'stow', heli: 'stow',
       say: { plane: s > 0 ? 'Winglets flip up' : null, rocket: s > 0 ? 'Winglets flip up' : null }, stowSay: s > 0 ? 'Winglets fold flat' : null
     });
     wl.add(box(0.05, 0.5, 0.4, M.livery, 0, 0.25, 0));
@@ -587,8 +598,8 @@ function buildRig(THREE, tex) {
 
     // Engine: rides the wing, swivels to keep pointing the right way in every mode
     const e = J(w, [s * 1.1, -0.35, 0.35], {
-      ord: 4.5, train: { r: [0, -s * 1.384, 0] }, rover: { p: [s * 0.393, 0, -0.074], r: [0, s * 1.757, 0] }, truck: { r: [0, -s * 1.384, 0] }, rocket: { r: [0, -s * 0.73, 0] },
-      say: { train: s > 0 ? 'Jet engines swing around into water tanks' : null, truck: null, rocket: s > 0 ? 'Engines swivel to point straight down' : null }
+      ord: 4.5, train: { r: [0, -s * 1.384, 0] }, rover: { p: [s * 0.393, 0, -0.074], r: [0, s * 1.757, 0] }, heli: { p: [-s * HE.ex, 0.22, -HE.ez], r: [0, -s * HE.psi, 0] }, truck: { r: [0, -s * 1.384, 0] }, rocket: { r: [0, -s * 0.73, 0] },
+      say: { train: s > 0 ? 'Jet engines swing around into water tanks' : null, truck: null, rocket: s > 0 ? 'Engines swivel to point straight down' : null, heli: s > 0 ? 'Jet engines settle on the roof, to spin the blades' : null }
     });
     e.add(tube(0.32, 0.26, 1.3, M.white));
     e.add(box(0.03, 0.08, 1.1, M.livery, 0.32, 0, 0), box(0.03, 0.08, 1.1, M.livery, -0.32, 0, 0));
@@ -630,7 +641,7 @@ function buildRig(THREE, tex) {
     const barrel = bigPart(cannon, [0, 0, 0], [0, -0.32, 0], new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.4, 12), M.grey));
     const muzzle = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.02, 12), M.glow); muzzle.position.y = -0.21; barrel.add(muzzle);
 
-    const fa = J(ua, [-s * 0.55, -0.55, 0.9], { ord: 6, robot: { r: [0.5, 0, 0] }, say: { robot: s > 0 ? 'Elbows bend' : null } });
+    const fa = J(ua, [-s * 0.55, -0.55, 0.9], { ord: 6, robot: { r: [0.5, 0, 0] }, heli: { p: [0, 0, -0.86] }, say: { robot: s > 0 ? 'Elbows bend' : null, heli: s > 0 ? 'The front slides in short and round' : null } });
     if (s > 0) { named.uaR = ua; named.faR = fa; }
     const fShell = shell(s, 0.42, 0.55, 0.9, true).translateY(0.55).translateZ(0.45);
     for (const z of [-0.2, -0.05, 0.1]) fShell.add(box(0.012, 0.18, 0.05, M.dark, -s * 0.012, 0.15, z));
@@ -673,7 +684,7 @@ function buildRig(THREE, tex) {
 
     if (s > 0) {
       const ng = named.gear[named.gear.push(null) - 1] = J(fa, [0.12, 0.35, 0.65], {
-        kind: 'acc', ord: 0, stow: { r: [H, 0, 0] }, robot: { r: [H, 0, 0] }, train: { r: [H, 0, 0] }, rocket: { r: [H, 0, 0] }, truck: { r: [H, 0, 0] }, rover: 'stow'
+        kind: 'acc', ord: 0, stow: { r: [H, 0, 0] }, robot: { r: [H, 0, 0] }, train: { r: [H, 0, 0] }, rocket: { r: [H, 0, 0] }, truck: { r: [H, 0, 0] }, rover: 'stow', heli: 'stow'
       });
       ng.add(gear(0.5, 0.18, false));
     }
@@ -701,7 +712,7 @@ function buildRig(THREE, tex) {
     const kc = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.5, 20).rotateZ(H), M.gun);
     kc.position.set(s * 0.25, 0, -1.3); thigh.add(kc);                                        // knee axle
 
-    const knee = J(thigh, [0, 0, -1.3], { ord: 8, robot: { r: [0.6, 0, 0] } });
+    const knee = J(thigh, [0, 0, -1.3], { ord: 8, robot: { r: [0.6, 0, 0] }, heli: { p: [0, 0, 0.95], S: [0.94, 0.94, 1] }, say: { heli: s > 0 ? 'The shins slide up inside the thighs' : null } });
     named.legs = named.legs || []; named.legs.push({ thigh, knee, s });
     const sShell = shell(s, 0.55, 0.55, 1.3, true); sShell.position.set(0, 0, -0.65);
     sShell.add(box(0.34, 0.05, 0.4, M.gun, s * 0.2, -0.54, 0.4), box(0.2, 0.02, 0.16, M.livery, s * 0.2, -0.57, 0.4));
@@ -726,9 +737,9 @@ function buildRig(THREE, tex) {
 
     // Tail fin halves: calves in robot, a flat roof spoiler on the train, splayed fins on the rocket
     const fj = J(knee, [0, 0.5, -0.6], {
-      kind: 'acc', ord: 2, robot: { p: [s * 0.2, -0.98, 0.2], S: [1, 0.62, 0.55] }, tractor: { p: [s * 0.2, -0.98, 0.2], S: [1, 0.62, 0.55] }, train: { p: [0, -1.45, 0] }, rocket: { r: [0, 0, -s * 0.7] }, rover: 'robot', first: { mode: 'rover', ord: 2 },
+      kind: 'acc', ord: 2, robot: { p: [s * 0.2, -0.98, 0.2], S: [1, 0.62, 0.55] }, tractor: { p: [s * 0.2, -0.98, 0.2], S: [1, 0.62, 0.55] }, train: { p: [0, -1.45, 0] }, rocket: { r: [0, 0, -s * 0.7] }, rover: 'robot', heli: { p: [0, -0.42, HE.fin], S: [1, 0.66, 0.6] }, first: { mode: 'rover', ord: 2 },
       say: { robot: s > 0 ? 'Tail fin halves slide away inside the shins' : null, train: s > 0 ? 'Tail fin slides down into the body' : null, truck: null,
-             rocket: s > 0 ? 'Tail fins angle out for stability' : null }, stowSay: s > 0 ? 'Tail fin halves close up' : null
+             rocket: s > 0 ? 'Tail fins angle out for stability' : null, heli: s > 0 ? 'The tail fin slides back along the boom' : null }, stowSay: s > 0 ? 'Tail fin halves close up' : null
     });
     const fs = new THREE.Shape();
     fs.moveTo(0, 0); fs.lineTo(1.4, 0); fs.lineTo(2.2, 1.5); fs.lineTo(1.6, 1.5); fs.lineTo(0, 0);
@@ -746,7 +757,7 @@ function buildRig(THREE, tex) {
 
 
     const sj = J(foot, [s * 0.15, 0.1, -0.2], {
-      ord: 3.5, robot: { p: [(s > 0 ? 0.1 : -0.16) - s * 0.15, -s * 0.25 - 0.1, 0.95], r: [s * H, 0, -H] }, train: { r: [0, 0, -s * H] }, truck: { r: [0, -s * H, 0] }, tractor: { r: [0, 0, -s * 0.5] }, rover: 'robot',
+      ord: 3.5, robot: { p: [(s > 0 ? 0.1 : -0.16) - s * 0.15, -s * 0.25 - 0.1, 0.95], r: [s * H, 0, -H] }, train: { r: [0, 0, -s * H] }, truck: { r: [0, -s * H, 0] }, tractor: { r: [0, 0, -s * 0.5] }, rover: 'robot', heli: { p: [-s * 0.1, -0.1, HE.stab], S: [0.55, 1, 0.55] },
       say: { robot: s > 0 ? 'Stabilizers fold away inside the ankles' : null, train: s > 0 ? 'Stabilizers fold down into a rear skirt' : null, truck: null }
     });
     sj.add(new THREE.Mesh(wingGeo(s, 1.3, 0.8, 0.3, 0.7, 0.06), M.white));
@@ -822,7 +833,7 @@ function buildRig(THREE, tex) {
 
   // ---------- head (the nose) ----------
   const head = J(root, [0, 0, 3.6], {
-    ord: 7, robot: { p: [0, -0.3, -1.3], r: [-H, 0, 0] }, train: { p: [0, 0, -0.95] }, truck: { p: [0, 0, -1.1] }, tractor: { p: [0, 0, -1.45] }, rover: { p: [0.3, 2.65, -0.15], r: [0, PI, 0], S: [0.75, 0.75, 0.75] }, late: { mode: 'rover', ord: 6 },
+    ord: 7, robot: { p: [0, -0.3, -1.3], r: [-H, 0, 0] }, train: { p: [0, 0, -0.95] }, truck: { p: [0, 0, -1.1] }, tractor: { p: [0, 0, -1.45] }, rover: { p: [0.3, 2.65, -0.15], r: [0, PI, 0], S: [0.75, 0.75, 0.75] }, heli: { p: [0, 0, -1.0], S: [1.17, 1.17, 0.78] }, late: { mode: 'rover', ord: 6 },
     say: { rover: 'The nose rides up the mast and becomes the camera head', tractor: 'Nose slides back under the tractor hood', robot: 'Nose folds back, revealing the face', plane: 'Face folds away into the nose', train: 'Nose slides back into the boiler, leaving a smokebox door', truck: 'Nose slides back under the hood', rocket: 'Face folds away into the nose cone' }
   });
   const ngeo = new THREE.CylinderGeometry(0.1, 0.42, 1.1, 28); ngeo.rotateX(H); ngeo.translate(0, 0, 0.55);
@@ -846,10 +857,72 @@ function buildRig(THREE, tex) {
 
   // GIANT: a row of power lights slides out of the belly armor
   bigPart(root, [0, -0.43, 0.72], [0, -0.6, 0.72], box(0.42, 0.05, 0.16, M.gun), ...[-0.14, 0, 0.14].map(x => box(0.09, 0.03, 0.08, M.glow, x, -0.02, 0)));
+  // ---------- the helicopter's own parts (Jasper's idea): mast, blades, tail boom, skid legs, windshield ----------
+  // Like the folding blades on Navy helicopters: the blades wait folded back along the body, inside the belly,
+  // then the mast rises, they fan open, and each one stretches out like a telescope.
+  const heliFrom = joints.length;
+  const heli = quietly(() => {
+    const hb = { blades: [], flaps: [], tail: [], glass: [] };
+    const N = 4, SEC = 0.74, OUT = 0.68, PARTS = 5;      // short enough to fold away inside
+    const hub = J(root, [0, 0.2, 0.78], { kind: 'acc', ord: 3, heli: { p: [0, 1.17, -0.08] }, say: { heli: 'The mast rises up between the engines' } });
+    hub.add(new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.09, 0.55, 16), M.steel).translateY(-0.24));       // mast
+    const tilt = new THREE.Group(); hub.add(tilt);                                                               // the spinning disc leans the way you push the stick
+    const spin = new THREE.Group(); tilt.add(spin);
+    spin.add(new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.19, 0.1, 20), M.gun), new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 8, 0, PI * 2, 0, H), M.livery).translateY(0.05));
+    const swash = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.03, 20), M.steel); swash.position.y = -0.14; tilt.add(swash);   // swashplate: tips the blades as they go around
+    for (let k = 0; k < N; k++) {
+      const arm = J(spin, [0, 0, 0], { kind: 'acc', ord: 4, plane: { r: [0, PI, 0] }, heli: { r: [0, PI + (k - 1.5) * H, 0] }, say: { heli: k === 0 ? 'Four blades fan open' : null } });
+      const flap = new THREE.Group(); arm.add(flap); hb.flaps.push(flap);      // a blade can twist, and sag or lift at its root
+      flap.add(box(0.09, 0.05, 0.3, M.gun, 0, 0, 0.18));
+      let prev = flap;
+      for (let j = 0; j < PARTS; j++) {
+        const w = 0.3 - j * 0.015, t = 0.044 - j * 0.006, last = j === PARTS - 1;
+        const sec = J(prev, j ? [0, 0, 0] : [0, (k - 1.5) * 0.05, 0.02], { kind: 'acc', ord: 4 + j * 0.3, heli: j ? { p: [0, 0, OUT] } : { p: [0, -(k - 1.5) * 0.05, 0.16] }, say: { heli: k === 0 && j === 1 ? 'The blades stretch out long' : null } });
+        const bm = box(w, t, SEC - 0.05, last ? M.white : M.gun, 0.03, 0, SEC / 2); sec.add(bm);
+        if (last) sec.add(box(w + 0.004, t + 0.004, 0.2, M.paint, 0.03, 0, SEC - 0.22));            // red tip stripe, so people can see the spinning edge
+        prev = sec;
+      }
+      hb.blades.push(arm);
+    }
+    const disc = new THREE.Mesh(new THREE.RingGeometry(0.35, 3.62, 56).rotateX(-H), new THREE.MeshBasicMaterial({ color: 0x4a4e52, transparent: true, opacity: 0, depthWrite: false, side: DS }));
+    disc.visible = false; tilt.add(disc);
+    // Tail boom: three nested tubes in the right half of the tail cone
+    const footR = named.feet[0];
+    let prev = footR, boomEnd = null;
+    for (let j = 0; j < 3; j++) {
+      const r = 0.115 - j * 0.016;
+      const b = J(prev, j ? [0, 0, 0] : [0.135, 0, 0.18], { kind: 'acc', ord: 2 + j * 0.2, heli: { p: j ? [0, 0, -0.5] : [-0.135, 0, -0.84] }, say: { heli: j === 0 ? 'A tail boom stretches out the back' : null } });
+      b.add(tube(r, r - 0.008, 0.66, M.white)); if (j) b.add(box(0.012, 0.04, 0.6, M.livery, r - 0.004, 0, 0), box(0.012, 0.04, 0.6, M.livery, -r + 0.004, 0, 0));
+      prev = boomEnd = b;
+    }
+    const th = J(boomEnd, [0, 0, -0.26], { kind: 'acc', ord: 2.8, heli: { p: [0.17, 0.1, -0.02] }, say: { heli: 'Tail blades open, to push sideways' } });
+    const tspin = new THREE.Group(); th.add(tspin);
+    tspin.add(new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.07, 14).rotateZ(H), M.gun));
+    for (let k = 0; k < 4; k++) { const b = J(tspin, [0, 0, 0], { kind: 'acc', ord: 3.2, heli: { r: [k * H + 0.4, 0, 0] } }); b.add(box(0.018, 0.09, 0.4, M.gun, 0, 0, 0.26), box(0.02, 0.092, 0.08, M.paint, 0, 0, 0.42)); hb.tail.push(b); }
+    // Skid legs
+    for (const s of [1, -1]) for (const z of [0.4, 1.55]) {
+      const l = J(root, [s * 0.18, 0, z > 1 ? 0.75 : 0.3], { kind: 'acc', ord: 0.8, heli: { p: [s * 0.42, -0.72, z > 1 ? 0.8 : 0.1], r: [0, 0, s * 0.42] } });
+      l.add(box(0.06, 0.66, 0.07, M.gun));
+    }
+    // Windshield: curved panes slide forward out of the body
+    for (const s of [1, -1]) {
+      const w = J(root, [0, 0, 0.5], { kind: 'acc', ord: 1.4, heli: { p: [0, 0, 1.76], S: [1.145, 1.145, 1] }, say: { heli: s > 0 ? 'Big windshield panes slide forward' : null } });
+      const a0 = s > 0 ? H - 0.15 : PI + 0.07, a1 = s > 0 ? PI - 0.07 : 3 * H + 0.15;
+      w.add(arc(0.494, 0.86, a0, a1, M.glass));
+      for (const z of [-0.43, 0.43]) w.add(arc(0.497, 0.05, a0, a1, M.gun).translateZ(z));
+      w.add(arc(0.498, 0.86, s > 0 ? H - 0.19 : 3 * H + 0.11, s > 0 ? H - 0.11 : 3 * H + 0.19, M.gun), arc(0.497, 0.86, s > 0 ? H + 0.62 : 3 * H - 0.68, s > 0 ? H + 0.68 : 3 * H - 0.62, M.gun));
+      hb.glass.push(w);
+    }
+    for (const j of joints.slice(heliFrom)) j.userData.heliOnly = true;      // tucked away inside, they stay put in a truck crash
+    for (const j of joints.slice(heliFrom)) j.traverse(o => { if (o.isMesh) o.userData.heli = true; });
+    hb.stowed = joints.slice(heliFrom).filter(j => !joints.slice(heliFrom).some(q => { let p = j.parent; while (p) { if (p === q) return true; p = p.parent; } return false; }));      // the outermost parts
+    return Object.assign(hb, { hub, tilt, spin, swash, disc, boomEnd, tailHub: th, tailSpin: tspin });
+  });
+
   bot.traverse(o => { if (o.isMesh && !o.material.transparent) { o.castShadow = true; o.receiveShadow = true; } });
   const headJ = head;
   const cur = joints.map(j => ({ P: j.userData.poses[0].P.slice(), R: j.userData.poses[0].R.slice(), S: j.userData.poses[0].S.slice() }));
-  return { bot, joints, cur, fans, flames, wheels, drivers, rods, truckWheels, navLights, M, head: headJ, stack: stackJ, sideDoor: sd, mask, named, truckBits, sizeBits, jr, cargo, airbag, tractorBits };
+  return { bot, joints, cur, fans, flames, wheels, drivers, rods, truckWheels, navLights, M, head: headJ, stack: stackJ, sideDoor: sd, mask, named, truckBits, sizeBits, jr, cargo, airbag, tractorBits, heli };
 }
 
 // ---------- morph planner ----------
@@ -954,6 +1027,8 @@ function poseRig(rig, plan, t, ease) {
     j.position.set(v.P[0], v.P[1], v.P[2]); j.rotation.set(v.R[0], v.R[1], v.R[2]); j.scale.set(v.S[0], v.S[1], v.S[2]);
     rig.cur[i] = v;
   });
+  // The helicopter's parts aren't drawn while they're all the way inside, shut in where nobody could see them.
+  for (const j of rig.heli.stowed) { const p = j.userData.poses[0]; j.visible = Math.abs(j.position.x - p.P[0]) + Math.abs(j.position.y - p.P[1]) + Math.abs(j.position.z - p.P[2]) > 1e-9; }
   // Visor glows only while the face is showing
   const hk = c01(-rig.cur[rig.joints.indexOf(rig.head)].R[0] / (Math.PI / 2));
   rig.M.visor.emissiveIntensity = 0.1 + 1.8 * Math.pow(hk, 3);
@@ -991,4 +1066,4 @@ function exactBox(THREE, root, skip) {
   return box;
 }
 
-export { MODES, buildRig, exactBox, planMorph, poseRig };
+export { MODES, buildRig, exactBox, planMorph, poseRig, quietly };

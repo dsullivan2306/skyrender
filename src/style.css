@@ -88,3 +88,29 @@ body.in-cabin .side, body.in-cabin .controls { display: none; }
 #snap[hidden] { display: none; }
 #snap canvas { display: block; width: 100%; height: auto; }
 #snap figcaption { padding-top: 4px; font-size: 0.8rem; font-weight: 600; text-align: center; color: #2a2a2a; }
+
+/* The helicopter's controls: blades and lift levers on the left, stick and pedals on the right */
+#heli { position: fixed; left: 0; right: 0; z-index: 2; display: flex; justify-content: space-between; align-items: flex-end; padding: 0 16px; pointer-events: none; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+#heli[hidden] { display: none; }
+.heli-side { display: flex; gap: 10px; align-items: flex-end; pointer-events: auto; }
+.heli-right { flex-direction: column; align-items: center; gap: 8px; }
+.lever { display: flex; flex-direction: column; align-items: center; gap: 5px; width: 72px; padding: 7px 0 8px; border-radius: 20px; background: var(--bar-bg); }
+.lever-val { font-size: .8rem; font-weight: 600; color: var(--muted); min-height: 1.1em; white-space: nowrap; }
+.lever-name { font-size: .9rem; font-weight: 600; }
+.lever-track { position: relative; width: 52px; height: 150px; box-sizing: border-box; border: 1.5px solid var(--ink); border-radius: 26px; background: var(--btn-bg); cursor: pointer; touch-action: none; }
+.lever-knob { position: absolute; left: 3px; right: 3px; height: 40px; border-radius: 20px; background: var(--accent); pointer-events: none; }
+.lever-notch { position: absolute; left: 8px; right: 8px; height: 2px; background: var(--muted); }
+.stick { position: relative; width: 132px; height: 132px; box-sizing: border-box; border: 1.5px solid var(--ink); border-radius: 50%; background: var(--bar-bg); cursor: grab; touch-action: none; }
+.stick-knob { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; border-radius: 50%; background: var(--accent); transform: translate(-50%, -50%); pointer-events: none; }
+.stick-tick { position: absolute; width: 7px; height: 7px; border: solid var(--muted); border-width: 2px 2px 0 0; }
+.stick-tick.n { left: calc(50% - 4px); top: 10px; transform: rotate(-45deg); } .stick-tick.s { left: calc(50% - 4px); bottom: 10px; transform: rotate(135deg); }
+.stick-tick.e { right: 10px; top: calc(50% - 4px); transform: rotate(45deg); } .stick-tick.w { left: 10px; top: calc(50% - 4px); transform: rotate(-135deg); }
+.lever-track:focus-visible, .stick:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.pedals { display: flex; gap: 6px; }
+.pedal { padding: 12px 14px; font-size: .85rem; touch-action: none; background: var(--bar-bg); }
+.pedal:hover { background: var(--bar-bg); color: var(--ink); }
+.pedal.down { background: var(--ink); color: var(--bg); }
+body.in-heli .scrub { display: none; }
+body.in-heli .side { max-height: calc(100vh - var(--bar, 110px) - 212px); }
+@media (max-height: 700px) and (min-width: 700px) { .heli-right { margin-right: 150px; } body.in-heli .side { max-height: calc(100vh - 150px); } }
+@media (max-width: 560px) { #heli { padding: 0 10px; } .heli-side { gap: 8px; } .lever { width: 58px; } .stick { width: 120px; height: 120px; } .pedal { padding: 11px 10px; font-size: .78rem; } }

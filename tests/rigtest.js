@@ -1,4 +1,4 @@
-// Checks the "one machine" rule numerically: morph between every pair of the 6 modes and confirm
+// Checks the "one machine" rule numerically: morph between every pair of the 8 shapes and confirm
 // every joint lands exactly on its target pose. Pass = worst error near 1e-15.
 // usage: node tests/rigtest.js
 import * as THREE from 'three';
