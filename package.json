@@ -12,7 +12,7 @@
     "test:park": "node tests/shoot.js tests/scenarios/park.js",
     "test:airport": "node tests/shoot.js tests/scenarios/airport.js",
     "test:cabin": "node tests/shoot.js tests/scenarios/plane-cabin.js && node tests/shoot.js tests/scenarios/reboard.js && node tests/shoot.js tests/scenarios/cancel-boarding.js",
-    "test": "npm run build && npm run test:rig && npm run test:modes && npm run test:park && npm run test:airport && npm run test:cabin && npm run test:install && npm run test:moon && npm run test:planets && npm run test:rover && npm run test:skymoon && npm run test:worlds && npm run test:sound && npm run test:ideas && npm run test:shots && npm run test:ipad",
+    "test": "npm run build && npm run test:rig && npm run test:modes && npm run test:park && npm run test:airport && npm run test:cabin && npm run test:install && npm run test:moon && npm run test:planets && npm run test:rover && npm run test:skymoon && npm run test:storm && npm run test:worlds && npm run test:sound && npm run test:ideas && npm run test:shots && npm run test:ipad",
     "icons": "node scripts/make-icons.js",
     "test:install": "node tests/shoot.js tests/scenarios/install.js",
     "test:shots": "node tests/compare.js",
@@ -25,6 +25,7 @@
     "test:worlds": "node tests/shoot.js tests/scenarios/worlds.js",
     "test:planets": "node tests/shoot.js tests/scenarios/planets.js",
     "test:rover": "node tests/shoot.js tests/scenarios/rover.js",
+    "test:storm": "node tests/shoot.js tests/scenarios/moon-storm.js",
     "test:skymoon": "node tests/shoot.js tests/scenarios/skyfly-moon.js"
   },
   "dependencies": {

@@ -43,7 +43,7 @@ rig.jr.j.traverse(o => { if (o.isMesh) skipBox.add(o); });      // Jr. flies off
 // Fun toggles for each mode. 'toggle' buttons stay on or off; 'press' buttons do something once.
 const ACTIONS = [
   [{ id: 'visit', label: 'Go to a planet', seg: [['mercury', 'Mercury'], ['venus', 'Venus'], ['earth', 'Earth'], ['mars', 'Mars'], ['jupiter', 'Jupiter'], ['saturn', 'Saturn'], ['uranus', 'Uranus'], ['neptune', 'Neptune']] },
-    { id: 'land', label: 'Land', press: true }, { id: 'moonland', label: 'Land on the Moon', press: true }, { id: 'door', label: 'Open door' }, { id: 'gear', label: 'Gear up' }, { id: 'lights', label: 'Flash lights' }, { id: 'peek', label: 'See inside airport' }, { id: 'goin', label: 'Go inside airport' }, { id: 'board', label: 'Board the plane', press: true }, { id: 'space', label: 'Fly to space' }, { id: 'meteors', label: 'Meteors', press: true }, { id: 'astro', label: 'Astronauts' }, { id: 'rover', label: 'Rover' }, { id: 'skyfly', label: 'Skyfly rover' }],
+    { id: 'land', label: 'Land', press: true }, { id: 'moonland', label: 'Land on the Moon', press: true }, { id: 'door', label: 'Open door' }, { id: 'gear', label: 'Gear up' }, { id: 'lights', label: 'Flash lights' }, { id: 'peek', label: 'See inside airport' }, { id: 'goin', label: 'Go inside airport' }, { id: 'board', label: 'Board the plane', press: true }, { id: 'space', label: 'Fly to space' }, { id: 'meteors', label: 'Meteors', press: true }, { id: 'astro', label: 'Astronauts' }, { id: 'rover', label: 'Rover' }, { id: 'skyfly', label: 'Skyfly rover' }, { id: 'stuck', label: 'Astronauts stuck' }, { id: 'fight', label: 'Fight meteors' }],
   [{ id: 'size', seg: [['small', 'Small'], ['medium', 'Medium'], ['big', 'Big']] }, { id: 'wave', label: 'Wave' }, { id: 'march', label: 'March' }, { id: 'mask', label: 'Mask off' }, { id: 'hatch', label: 'Close hatch' }],
   [{ id: 'whistle', label: 'Whistle', press: true }, { id: 'stop', label: 'Stop train' }, { id: 'lamp', label: 'Lamp off' }],
   [{ id: 'arm', label: 'Swing arm away' }, { id: 'launch', label: 'Launch now', press: true }],
@@ -151,14 +151,16 @@ let actsShown = '';
 // Jasper's planets (space/planets.js): the planet row in space, Land at Earth and Mars, Take off on Mars.
 function showActions(sp) {
   const space = S.plan.to === 0 && sp > 0.8, high = S.plan.to === 0 && S.planeAlt > 0, pu = linked.planetUI();
-  const key = space + '|' + high + '|' + actsFor + '|' + pu.at + '|' + pu.to + '|' + pu.landed + '|' + pu.busy + '|' + pu.canLand + '|' + pu.where + '|' + pu.skyfly; if (key === actsShown) return; actsShown = key;
+  const key = space + '|' + high + '|' + actsFor + '|' + pu.at + '|' + pu.to + '|' + pu.landed + '|' + pu.busy + '|' + pu.canLand + '|' + pu.where + '|' + pu.skyfly + '|' + pu.storm; if (key === actsShown) return; actsShown = key;
   const ground = pu.landed || pu.busy;               // on Mars, or on the way down or up
   for (const b of actsEl.querySelectorAll('[data-id]')) {
     const id = b.dataset.id;
-    b.hidden = ((id === 'meteors') && (!space || pu.at !== 'earth' || ground || pu.to)) || ((id === 'astro') && ((!space && !pu.landed) || (pu.landed && pu.skyfly))) || (id === 'rover' && !(pu.landed && pu.where === 'mars')) || (id === 'skyfly' && !pu.landed) ||
+    const moonGround = pu.landed && pu.where === 'moon';
+    b.hidden = ((id === 'meteors') && (!space || pu.at !== 'earth' || ground || pu.to) && !(moonGround && !pu.skyfly)) || ((id === 'stuck' || id === 'fight') && !(moonGround && pu.storm && !pu.skyfly)) || ((id === 'door' || id === 'lights') && moonGround && pu.storm) || ((id === 'astro') && ((!space && !pu.landed) || (pu.landed && pu.skyfly))) || (id === 'rover' && !(pu.landed && pu.where === 'mars')) || (id === 'skyfly' && !pu.landed) ||
       (id === 'moonland' && !(space && pu.canLand && pu.at === 'earth')) || ((id === 'door' || id === 'lights') && pu.landed && pu.skyfly) || (id === 'gear' && (pu.landed || pu.busy)) ||   // wheels stay down on the ground
       ((id === 'peek' || id === 'goin' || id === 'board') && high) || (id === 'visit' && (!space || ground)) ||
       (id === 'land' && !(space && pu.canLand) && !pu.landed) || (id === 'space' && ground) || ((id === 'door' || id === 'gear') && space && !pu.landed);   // in space the astronauts open the door themselves
+    if (id === 'meteors') { if (moonGround) b.setAttribute('aria-pressed', String(pu.storm)); else b.removeAttribute('aria-pressed'); }
     if (id === 'land') b.textContent = pu.landed ? 'Take off' : pu.at === 'mars' ? 'Land on Mars' : 'Land at home';
     if (id === 'visit') for (const c of b.querySelectorAll('button')) c.setAttribute('aria-pressed', String(c.dataset.val === (pu.to || pu.at)));
   }
@@ -184,7 +186,9 @@ function doAction(a, b) {
   if (a.id === 'goin') { say(S.on.goin ? 'Skyrender rolls into the airport through the big glass doors' : 'Skyrender rolls back out to the runway', 2.4); if ((S.on.goin || S.on.peek) && S.planeT > 0) { S.pending = 0; setButtons(); } }
   if (a.id === 'peek' && S.on.peek && S.planeT > 0) { S.pending = 0; setButtons(); }
   if (a.id === 'board') requestPark();
-  if (a.id === 'space' || a.id === 'meteors' || (a.id === 'astro' && !linked.planetUI().landed)) linked.moonAction(a.id);
+  if (a.id === 'meteors') { if (linked.planetUI().landed) linked.meteorButton(); else S.meteorStorm = true; }   // the meteors keep falling when he lands on the Moon
+  if (a.id === 'stuck' || a.id === 'fight') linked.stormButton(a.id);
+  if (a.id === 'space' || (a.id === 'meteors' && !linked.planetUI().landed) || (a.id === 'astro' && !linked.planetUI().landed)) linked.moonAction(a.id);
   if (a.id === 'astro' && linked.planetUI().landed) say(S.on.astro ? 'The astronauts hop down onto ' + (linked.planetUI().where === 'moon' ? 'the Moon' : 'Mars') : 'Astronauts, back inside!', 2.4);
   if (a.id === 'moonland') linked.landAction('moon');
   if (a.id === 'rover') say(S.on.rover ? 'The rover wakes up! It lives on Mars and drives all by itself' : 'The rover stops and watches', 2.4);

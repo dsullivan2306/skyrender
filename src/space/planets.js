@@ -18,6 +18,7 @@ import { sfx } from '../audio/audio.js';
 import { ASTRO_SCALE, makeAstronaut } from './moontrip.js';
 import { planMorph, poseRig } from '../rig/rig.js';
 import { makeRover, roverCaption, runRover } from './rover.js';
+import { fire, makeStorm, pile, runStorm, strike } from './storm.js';
 
 let ps = 0x9a17;                                   // its own random numbers, so nothing else's randomness changes
 const prnd = () => { ps = (ps + 0x6D2B79F5) | 0; let x = Math.imul(ps ^ (ps >>> 15), 1 | ps); x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x; return ((x ^ (x >>> 14)) >>> 0) / 4294967296; };
@@ -297,12 +298,91 @@ const walkers = [true, false].map((stripes, i) => {
   return { a, L, body, flash, rock, route, mode: 'in', u: 0, wait: i * 1.3, spot: 0, work: 0, pos: new THREE.Vector3(), from: new THREE.Vector3(), to: new THREE.Vector3(), ph: 0, side: 1 };
 });
 const doorW = new THREE.Vector3(), _v = new THREE.Vector3();
+// ---------- meteors on the Moon's ground (Jasper's idea, space/storm.js) ----------
+// S.meteorStorm: Jasper pressed Meteors. Two buttons say what the astronauts do about it: stuck, or fight.
+let storm = null, team = { rel: false }, actK = 0;
+const theStorm = () => storm || (storm = makeStorm(moonG.scene, glowTex));
+const stormAct = () => !(onMoon() && S.meteorStorm && mars.phase === 'ground') ? null : S.on.fight ? 'fight' : S.on.stuck ? 'stuck' : null;
+const POST = [[3.0, 4.9], [4.0, 2.7]];              // where they stand: beside the nose, with a clear view of the sky
+function stopActs() { for (const [id, l] of [['stuck', 'Astronauts stuck'], ['fight', 'Fight meteors']]) if (S.on[id]) { S.on[id] = false; markOff(l); } }
+function meteorButton() {                          // Meteors pressed on the Moon: start the storm, or stop it
+  S.meteorStorm = !S.meteorStorm; if (!S.meteorStorm) stopActs();
+  say(S.meteorStorm ? 'Meteors! They come down far away, on the other side of Skyrender' : 'No more meteors. The sky is quiet', 3);
+}
+function stormButton(id) {                         // Astronauts stuck, or Fight meteors: one or the other
+  const other = id === 'stuck' ? 'fight' : 'stuck';
+  if (S.on[id] && S.on[other]) { S.on[other] = false; markOff(other === 'fight' ? 'Fight meteors' : 'Astronauts stuck'); }
+  if (S.on[id] && !S.on.astro) { S.on.astro = true; const b = document.querySelector('#acts button[data-id="astro"]'); if (b) b.setAttribute('aria-pressed', 'true'); }
+  if (id === 'stuck') say(S.on.stuck ? 'A big one is coming down, far away. Watch the dust!' : 'Here comes help!', 2.6);
+  else say(S.on.fight ? 'Astronauts to the rescue! Bump those rocks away' : 'Good work. Back to studying the Moon', 2.6);
+}
+function makeLauncher(w) {                         // it rides behind the backpack and slides up onto the shoulder
+  const g = new THREE.Group(), tube = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 1.15, 16).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xd9d6cc, roughness: 0.6 }));
+  const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.155, 0.155, 0.1, 16).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x7a2430, roughness: 0.6 })); ring.position.z = 0.5;
+  g.add(tube, ring); w.body.add(g); w.tube = g;
+}
+const HELD = ['stuck', 'pop', 'pull'];             // modes that finish before an astronaut can head back inside
+function runActs(w, i, dt, act, side, next) {      // the storm modes; returns how far the body is off the ground
+  const other = walkers[1 - i]; let bob = 0;
+  w.work += dt;
+  if (w.mode === 'fight') {
+    if (!w.tube) makeLauncher(w);
+    w.tubeK = THREE.MathUtils.clamp((w.tubeK || 0) + dt / 0.7 * (act === 'fight' ? 1 : -1), 0, 1);
+    const k = sm(w.tubeK); w.tube.visible = w.tubeK > 0; w.tube.position.set(-0.36, 0.98 + 0.42 * k, -0.52 + 0.62 * k); w.tube.rotation.x = -1.57 + 1.2 * k;
+    w.kick = Math.max(0, (w.kick || 0) - dt * 1.6);
+    w.a.rotation.y = Math.atan2(-side * 9, -20);   // toward where the rocks come from
+    w.body.rotation.x = -0.22 * sm(w.kick);
+    limbs(w, sx => [sx > 0 ? 0.3 * k : -0.45 * k, sx > 0 ? 0.3 * k : 0.5 * k, -1.25 * k - 0.1, sx < 0 ? -1.25 * k : -0.75 * k]);
+    bob = -0.08 * k;
+    if (act === 'fight' && k > 0.98 && w.work > 1.6 + i * 1.1) { w.tube.localToWorld(_v.set(0, 0, 0.7)); if (fire(storm, _v)) { w.kick = 1; w.work = i * 1.1 - 0.4; } }
+    if (act !== 'fight' && w.tubeK <= 0) { w.body.rotation.x = 0; next(w); }
+  } else if (w.mode === 'stuckWait') {
+    w.a.rotation.y = Math.atan2(-9 - w.pos.x, 15 - w.pos.z);
+    limbs(w, sx => [0, 0.1, sx > 0 ? -2.4 : -0.5, -0.5]);                                       // points up at it
+    if (act !== 'stuck') next(w);
+    else if (other.mode === 'stuckWait' && !storm.striking && !storm.buried) strike(storm, walkers.map(x => x.pos));
+    else if (storm.buried) { w.mode = 'stuck'; w.work = 0; w.pileK = 0; }
+  } else if (w.mode === 'stuck') {
+    w.pileK = Math.min(1, w.pileK + dt / 0.7); pile(storm, i, w.pos, w.pileK);
+    const s = Math.sin(w.work * 5 + i), tug = Math.max(0, Math.sin(w.work * 1.7 + i * 2));       // wiggle, then a big tug
+    const reach = i === 0 && other.mode === 'pull';
+    if (reach) { _v.copy(other.pos).sub(w.pos); w.a.rotation.y = Math.atan2(_v.x, _v.z); }
+    w.body.rotation.z = s * 0.13; w.body.rotation.x = reach ? 0.25 : 0.12 * tug; bob = -0.1 + 0.05 * tug;
+    limbs(w, sx => [-0.05, 0.1, reach ? -1.5 : -0.5 - 0.9 * tug + s * sx * 0.5, reach ? -0.1 : -0.6]);
+    if (act !== 'stuck') team.rel = true;
+    if (!team.rel) w.freeT = 0;
+    else {
+      w.freeT = (w.freeT || 0) + dt;
+      const alone = other.mode === 'in' || (other.mode !== 'stuck' && other.mode !== 'pop' && other.mode !== 'pull' && other.dest !== 'pull');
+      // the second astronaut wiggles loose, then pulls the commander out
+      if (i === 1 ? w.freeT > 1.8 : (other.mode === 'pull' && other.work > 2.9) || (alone && w.freeT > 1.8)) {
+        w.mode = 'pop'; w.work = 0; w.from.copy(w.pos); w.to.copy(w.pos); w.to.x += side * 0.9; w.to.z += i ? -0.6 : 0.4; w.body.rotation.x = w.body.rotation.z = 0; sfx.lock();
+      }
+    }
+  } else if (w.mode === 'pop') {                   // out it comes: a slow, floaty hop, because the Moon pulls so gently
+    const u = Math.min(1, w.work / 1.6); w.pos.copy(w.from).lerp(w.to, u); w.pos.y = 0; bob = Math.sin(u * Math.PI) * 0.9;
+    pile(storm, i, w.from, Math.max(0.2, 1 - u * 2));
+    limbs(w, () => [-0.6, 0.9, -2.0, -0.4]);
+    if (u >= 1) {
+      if (i === 1 && other.mode === 'stuck') { w.mode = 'walk'; w.dest = 'pull'; w.to.copy(other.pos); w.to.x += side * 0.5; w.to.z -= 1.1; }
+      else next(w);
+    }
+  } else if (w.mode === 'pull') {                  // three heaves, hand in hand
+    _v.copy(other.pos).sub(w.pos); w.a.rotation.y = Math.atan2(_v.x, _v.z);
+    const h = Math.max(0, Math.sin(w.work * Math.PI * 2 / 1.1 - 0.6));
+    w.body.rotation.x = -0.4 * h; limbs(w, sx => [0.2 * h - sx * 0.2, 0.25, -1.5, -0.1]);
+    if (other.mode !== 'stuck') { if (w.doneT === undefined) w.doneT = w.work; if (w.work > w.doneT + 1.2) { w.doneT = undefined; w.body.rotation.x = 0; next(w); } }
+  }
+  if (!walkers.some(x => x.mode === 'stuck')) { if (team.rel) { team.rel = false; storm.buried = false; } }
+  return bob;
+}
 function limbs(w, k) {                             // k: { hip, knee, arm, elbow } per side, from a pose
   for (const sx of [-1, 1]) { const l = w.L[sx], p = k(sx); l.hip.rotation.set(p[0], 0, sx * 0.08); l.kn.rotation.set(p[1], 0, 0); l.sh.rotation.set(p[2], 0, sx * 0.22); l.el.rotation.set(p[3], 0, 0); }
 }
 function runWalkers(dt, want) {
   rig.sideDoor.getWorldPosition(doorW);
   let out = 0;
+  const act = want ? stormAct() : null;
   for (const [i, w] of walkers.entries()) {
     const side = doorW.x >= 0 ? 1 : -1, base = _v.set(doorW.x + side * 1.4, 0, doorW.z + i * 1.1 - 0.5);
     const spotAt = (s, out2) => out2.set(side * w.route[s][0], 0, w.route[s][1]);
@@ -313,7 +393,11 @@ function runWalkers(dt, want) {
       continue;
     }
     out++; w.a.visible = true;
-    if (!want && w.mode !== 'back' && w.mode !== 'hopIn') { w.mode = 'back'; w.to.copy(base); }
+    const next = w2 => { w2.mode = 'walk'; w2.dest = null; w2.to.copy(spotAt(w2.spot, w2.to)); };
+    if (!want && w.mode !== 'back' && w.mode !== 'hopIn' && !HELD.includes(w.mode) && w.dest !== 'pull' && !(w.mode === 'fight' && w.tubeK > 0)) { w.mode = 'back'; w.dest = null; w.body.rotation.set(0, 0, 0); w.to.copy(base); }
+    if ((w.mode === 'walk' || w.mode === 'work') && w.dest !== 'pull' && (w.dest || null) !== act) {      // called to the storm, or done with it
+      if (act) { w.mode = 'walk'; w.dest = act; w.to.set(side * POST[i][0], 0, POST[i][1]); w.rock.visible = false; if (w.flash) w.flash.emissiveIntensity = 0; } else next(w);
+    }
     let bob = 0;
     if (w.mode === 'hopOut' || w.mode === 'hopIn') {
       // low gravity: a slow, floaty hop between the door and the ground
@@ -326,7 +410,7 @@ function runWalkers(dt, want) {
       _v.copy(w.to).sub(w.pos); _v.y = 0; const d = _v.length();
       if (d < 0.08) {
         if (w.mode === 'back') { w.mode = 'hopIn'; w.u = 0; w.from.copy(w.pos); w.to.copy(doorW); }
-        else { w.mode = 'work'; w.work = 0; }
+        else { w.mode = w.dest === 'stuck' ? 'stuckWait' : w.dest || 'work'; if (w.dest === 'pull') w.dest = null; w.work = 0; }
       } else {
         w.pos.addScaledVector(_v.normalize(), Math.min(d, dt * 1.3));
         w.a.rotation.y = Math.atan2(_v.x, _v.z);
@@ -341,7 +425,9 @@ function runWalkers(dt, want) {
         }
       }
       w.pos.y = 0;
-    } else if (w.mode === 'work') {
+    } else if (w.mode !== 'work') {
+      bob = runActs(w, i, dt, act, side, next);
+    } else {
       w.work += dt;
       if (i === 0) {                               // kneel and scoop up a rock to take home and study
         const reach = sm(c01(w.work / 0.8)) * (1 - sm(c01((w.work - 5.4) / 0.6)));
@@ -492,7 +578,7 @@ function goPlanet(id) {
   if (id === at) { say(id === 'earth' ? 'We\'re right here at Earth. Pick another planet!' : 'We\'re already at ' + BY[id].name, 2.4); return; }
   to = id; travelT = 0; sfx.whirr(1.2);
 }
-function takeOff() { mars.phase = 'up'; mars.t = 0; for (const [id, l] of [['astro', 'Astronauts'], ['rover', 'Rover'], ['skyfly', 'Skyfly rover']]) { S.on[id] = false; markOff(l); } }
+function takeOff() { mars.phase = 'up'; mars.t = 0; stopActs(); for (const [id, l] of [['astro', 'Astronauts'], ['rover', 'Rover'], ['skyfly', 'Skyfly rover']]) { S.on[id] = false; markOff(l); } }
 function landAction(where) {
   if (to) return;
   if (mars.active && mars.phase === 'ground') { takeOff(); return; }
@@ -591,6 +677,11 @@ function runPlanets(dt, sp) {
     d.m.scale.setScalar(0.5 + age * 2.4); d.m.material.opacity = 0.7 * Math.min(1, age * 5) * Math.max(0, d.life);
     if (d.life <= 0) d.m.visible = false;
   }
+  if (!S.on.space || at !== 'earth') S.meteorStorm = false;
+  if (S.on.skyfly || !S.on.astro) stopActs();       // astronauts inside: the storm buttons rest
+  if (mars.active && onMoon() && (S.meteorStorm || storm)) runStorm(theStorm(), dt, !!S.meteorStorm);
+  if (storm && storm.buried && !walkers.some(w => w.mode === 'stuck' || w.mode === 'stuckWait')) storm.buried = false;
+  actK += ((mars.active && (stormAct() || walkers.some(w => HELD.includes(w.mode))) ? 1 : 0) - actK) * Math.min(1, dt * 0.8);
   const out = mars.active ? runWalkers(dt, S.on.astro && mars.phase === 'ground' && !sky.plan) : 0;
   runSkyfly(dt);
   if (mars.active && !onMoon()) {                   // the rover watches Skyrender land, then the astronauts
@@ -601,6 +692,8 @@ function runPlanets(dt, sp) {
   roverK += ((mars.active && !onMoon() && S.on.rover && mars.phase === 'ground' ? 1 : 0) - roverK) * Math.min(1, dt * 0.8);
   window.__planets = { at, to, travel: travelT, mars: mars.phase || (mars.active ? 'ground' : null), onMars: mars.active && !onMoon(), onMoon: mars.active && onMoon(), walkersOut: out,
     skyfly: { on: !!sky.plan, t: sky.t, T: sky.plan ? sky.plan.T : 0, a: sky.a, v: sky.v, tracks: sky.laid[mars.where], cam: sky.plan && sky.t >= sky.plan.T ? 1 : 0, photos: sky.photos, snap: sky.snapT }, prints: moonG.laid,
+    storm: { on: !!S.meteorStorm, hits: storm ? storm.hits : 0, bumps: storm ? storm.bumps : 0, fired: storm ? storm.fired : 0, modes: walkers.map(w => w.mode), piles: walkers.map(w => w.pileK || 0), falling: storm ? storm.rocks.filter(r => r.mode === 'fall').length : 0,
+      nearest: storm ? Math.min(...storm.rocks.filter(r => r.mode !== 'idle').map(r => Math.min(...walkers.map(w => r.to.distanceTo(w.pos)))), 99) : 99 },
     working: walkers.filter(w => w.mode === 'work').length,
     rover: { mode: rover.mode, stop: rover.stop, zaps: rover.zaps, spark: rover.spark.material.opacity, tubes: rover.tubes, tracks: rover.laid, arm: rover.armK } };
 }
@@ -623,6 +716,18 @@ function skyCaption() {
   if (sky.snapT >= 0 && sky.target) return sky.shot ? sky.target.say : 'Skyfly stops. The camera turns to look';
   const L = SKY_DRIVE[mars.where]; return L[Math.floor(sky.driveT / 6) % L.length];
 }
+const STORM = ['Meteors don\'t glow here. They only glow rushing through air, and the Moon has none', 'You can\'t hear them land. But you can feel the ground shake through your boots', 'This is how the Moon got all its craters', 'Dust flies out in arcs and drops straight back. No air to make a cloud', 'Tap Fight meteors or Astronauts stuck'];
+const FIGHT = ['Astronauts launch little bumpers to knock the rocks off course', 'In 2022 a real spacecraft named DART bumped an asteroid, and its path changed', 'A small bump is enough, if you do it early', 'The launcher pushes back when it fires, so they stand with one foot forward'];
+const STUCK = ['Stuck! Moon dust up to their knees. Tap again to help them out', 'The rock hit far away. With no air to slow it, Moon dust flies a long, long way', 'Moon dust is sharp and grabby, like tiny bits of broken glass', 'On Apollo 15 a drill got stuck in the Moon. Two astronauts had to pull it out together'];
+function stormCaption() {
+  const m = walkers.map(w => w.mode), k = Math.floor(mars.landedT / 5);
+  if (m[1] === 'pull') return m[0] === 'stuck' ? 'Hold on tight! One, two, three, pull!' : 'Free! Teamwork did it';
+  if (m.includes('pop') || walkers[1].dest === 'pull') return 'One is out! Now go help the commander';
+  if (m.includes('stuck')) return team.rel ? 'Wiggle, wiggle. The boots are coming loose' : STUCK[k % STUCK.length];
+  if (m.includes('stuckWait')) return 'A big one is coming down, far away. Watch the dust!';
+  if (m.includes('fight') && S.on.fight) return storm.bumps ? FIGHT[k % FIGHT.length] : FIGHT[0];
+  return S.meteorStorm && !(k % 2) ? STORM[(k >> 1) % STORM.length] : '';
+}
 function planetCaption() {
   if (S.plan.to !== 0) return '';
   if (to) return to === 'earth' ? 'Flying home to Earth!' : travelT < 0.75 ? 'Flying to ' + BY[to].name + '! ' + BY[to].trip : BY[to].arrive;
@@ -630,6 +735,7 @@ function planetCaption() {
   if (mars.phase === 'up') return sky.plan ? (sky.a > 0 ? 'Skyfly drives back. Then it turns into the plane and up we go' : 'Skyfly turns back into the plane. Then up we go') : walkers.some(w => w.mode !== 'in') ? 'Astronauts, back inside! Then up we go' : 'Rockets on! Back up to space';
   if (mars.active) {
     const sc = skyCaption(); if (sc) return sc;
+    if (onMoon()) { const c = stormCaption(); if (c) return c; }
     if (S.on.rover && !onMoon()) { const c = roverCaption(rover); if (c) return c; }
     const k = Math.floor(mars.landedT / 6), [walk, facts, ground] = onMoon() ? [MOON_WALK, MOON_FACTS, MOON_GROUND] : [MARS_WALK, BY.mars.facts, MARS_GROUND];
     if (walkers.some(w => w.mode !== 'in')) return k % 2 ? walk[(k >> 1) % walk.length] : facts[(k >> 1) % facts.length];
@@ -644,9 +750,9 @@ function planetCaption() {
 }
 // What the buttons should show: in space, the planet row; Land at Earth and Mars, Take off on Mars
 const planetUI = () => ({ at, to, landed: mars.active && mars.phase === 'ground', busy: !!mars.phase && mars.phase !== 'ground', canLand: !to && !mars.phase && (at === 'earth' || at === 'mars'),
-  where: mars.active || mars.phase ? mars.where : null, skyfly: !!sky.plan || !!S.on.skyfly });
-const marsView = () => { const p = skyPose(); return { on: mars.active, y: mars.y, scene: groundScene(), rk: roverK, rx: rover.pos.x, rz: rover.pos.z,
+  where: mars.active || mars.phase ? mars.where : null, skyfly: !!sky.plan || !!S.on.skyfly, storm: !!S.meteorStorm });
+const marsView = () => { const p = skyPose(); return { on: mars.active, y: mars.y, scene: groundScene(), rk: Math.max(roverK, actK), rx: actK > roverK ? 3.4 : rover.pos.x, rz: actK > roverK ? 5 : rover.pos.z,
   follow: walkers.some(w => w.mode !== 'in') ? 0.3 : sky.plan ? 0.2 : 0.5, sk: skyK, fx: sky.plan ? p.x : 0, fz: sky.plan ? p.z : 0, yaw: sky.plan ? p.yaw : 0 }; };
 
 wear('earth');
-export { PLANETS, goPlanet, landAction, marsView, planetCaption, planetUI, runPlanets };
+export { PLANETS, goPlanet, landAction, marsView, meteorButton, planetCaption, planetUI, runPlanets, stormButton };

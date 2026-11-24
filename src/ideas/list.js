@@ -16,4 +16,6 @@ export const IDEAS = [
     when: '2026-11-18', what: 'On Mars, Skyfly\u2019s smokestack becomes a camera mast. It stops, turns its camera, and click!' },
   { words: 'Instead of skyfly being the tractor as the rover he\u2019s going to be a real rover',
     when: '2026-11-20', what: 'On Mars and the Moon, Skyfly changes into a real rover: six wheels, a flat top, and a camera on a mast' },
+  { words: 'When Jasper presses meteors and then goes on the moon there will still be meteors and the astronauts will be stuck or fighting there are buttons for both of those things',
+    when: '2026-11-23', what: 'Press Meteors, then land on the Moon: they keep falling. Tap Fight meteors to bump them away, or Astronauts stuck, then help them out' },
 ];
