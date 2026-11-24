@@ -82,3 +82,9 @@ body.in-cabin .side, body.in-cabin .controls { display: none; }
 .ideas-send { color: var(--bg); background: var(--accent); border-color: var(--accent); font-size: 1.05rem; padding: 13px 24px; }
 .ideas-send:hover { color: var(--bg); background: var(--accent); }
 .ideas-left { justify-content: flex-start; margin-top: 10px; }
+
+/* Skyfly's picture: a small photo print in the corner */
+#snap { position: fixed; top: 14px; left: 16px; z-index: 2; margin: 0; padding: 6px 6px 5px; width: min(38vw, 230px); box-sizing: border-box; background: #f6f3ec; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25); transform: rotate(-2deg); pointer-events: none; }
+#snap[hidden] { display: none; }
+#snap canvas { display: block; width: 100%; height: auto; }
+#snap figcaption { padding-top: 4px; font-size: 0.8rem; font-weight: 600; text-align: center; color: #2a2a2a; }

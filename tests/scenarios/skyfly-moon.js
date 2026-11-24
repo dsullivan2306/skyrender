@@ -8,7 +8,9 @@ export default async ({ page, step, shot, act }) => {
   const cap = () => page.$eval('#step', e => e.textContent);
   const P = () => page.evaluate(() => window.__planets);
   const must = (ok, why, v) => { if (!ok) throw new Error(why + ' ' + JSON.stringify(v)); };
-  const until = async (ok, why, max = 1500) => { for (let i = 0; i < max; i += 5) { const v = await P(); if (ok(v, await cap())) return v; await step(5); } throw new Error(why + ' ' + JSON.stringify(await P()) + ' ' + await cap()); };
+  const until = async (ok, why, max = 1500, by = 5) => { for (let i = 0; i < max; i += by) { const v = await P(); if (ok(v, await cap())) return v; await step(by); } throw new Error(why + ' ' + JSON.stringify(await P()) + ' ' + await cap()); };
+  // the picture is drawn on the frame after the click, and the harness only draws the last frame of a step: go one by one
+  const photo = async n => { await until(v => v.skyfly.photos === n - 1 && v.skyfly.snap > 1.4 && v.skyfly.snap < 1.75, 'Skyfly stops for picture ' + n, 2500, 1); for (let i = 0; i < 14; i++) { await step(1); } const v = await P(); must(v.skyfly.photos === n && v.skyfly.photoUp && v.skyfly.seen > 12, 'picture ' + n + ' shows something', v.skyfly); return v; };
   const shown = label => page.evaluate(l => [...document.querySelectorAll('#acts button')].some(b => b.textContent === l && !b.hidden && b.offsetParent), label);
   await page.click('#sound'); await page.click('#sound');
   await step(320); await act('Fly to space'); await step(260);
@@ -24,7 +26,7 @@ export default async ({ page, step, shot, act }) => {
   must(!(await shown('Astronauts')) && !(await shown('Open door')), 'astronaut and door buttons hide while Skyfly is a rover', {});
   p = await until(v => v.skyfly.on && v.skyfly.t > v.skyfly.T * 0.5, 'Skyfly changing'); await shot('sky-1');
   p = await until(v => v.skyfly.cam === 1, 'the camera mast goes up');
-  p = await until(v => v.skyfly.photos === 1 && v.skyfly.snap > 2, 'Skyfly stops and takes a picture');
+  p = await photo(1);
   c = await cap(); must(c.startsWith('Click!') && c.includes('rover'), 'a picture of the rover', c); await step(10); await shot('sky-photo');
   p = await until(v => v.skyfly.v > 1 && v.skyfly.a > 1.4, 'Skyfly drives a loop on Mars'); await shot('sky-2');
   c = await cap(); must(c.startsWith('Skyfly') || c.includes('Skyfly') || c.includes('batteries'), 'Skyfly rover caption', c);
@@ -39,7 +41,7 @@ export default async ({ page, step, shot, act }) => {
   await step(20); await shot('moonland-1');
   await act('Astronauts'); p = await until(v => v.working === 2, 'astronauts at work on the Moon');
   must(p.prints >= 6, 'footprints in the Moon dust', p); await step(20); await shot('moonland-2');
-  await act('Skyfly rover'); p = await until(v => v.skyfly.photos === 2 && v.skyfly.snap > 2, 'Skyfly takes a picture on the Moon', 2500);
+  await act('Skyfly rover'); p = await photo(2);
   c = await cap(); must(c.includes('Earth'), 'a picture of Earth', c); await step(10); await shot('moonland-3');
   p = await until(v => v.skyfly.v > 1 && v.skyfly.a > 2.2, 'Skyfly drives on the Moon', 2500);
   c = await cap(); must(c.length > 0, 'a Moon rover caption', c);

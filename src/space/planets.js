@@ -11,7 +11,7 @@
 // (they weigh less than half as much there) and scoop up rocks to study. Gas planets have no ground to land on.
 // Built last, after everything else, and reached by the main loop through `linked`.
 import * as THREE from 'three';
-import { stage } from '../world/setup.js';
+import { renderer, stage } from '../world/setup.js';
 import { atmo, atmoMat, canvasTex, earth, earthMat, giant, planetMats, redPlanet, ringM, space, stars } from '../scenery/space.js';
 import { S, c01, ease, flyer, rig, say, sm } from '../game/state.js';
 import { sfx } from '../audio/audio.js';
@@ -506,18 +506,19 @@ function runSkyfly(dt) {
   skyK += ((sky.plan ? 1 : 0) - skyK) * Math.min(1, dt * 0.8);
   if (sky.plan) poseRig(rig, sky.plan, sky.t, ease);
   aim(dt);
+  if (snapEl && !snapEl.hidden && ((snapHide -= dt) <= 0 || !S.on.skyfly || !mars.active)) snapEl.hidden = true;
   if (sky.plan && sky.t <= 0) sky.plan = null;
 }
 
 // ---------- Skyfly's camera ----------
 // Jasper's change: "Instead of skyfly being a tractor on mars it's a rover takeing pictures of it". Every few turns of
-// the loop Skyfly stops, the camera head on top of its mast turns to look at something, and click.
+// the loop Skyfly stops, the camera head on top of its mast turns to look at something, and click: the picture it took comes up in the corner.
 const SNAP = {
-  mars: [{ at: () => rover.pos, up: 0.6, say: 'Click! Skyfly takes a picture of the rover. Hello, friend!' },
-    { at: () => rover.oldAt, up: 0, say: 'Click! A picture of the old rover, asleep under the dust' },
-    { at: () => _t.set(26, 4, -34), up: 0, say: 'Click! The red hills. A picture takes minutes to get from Mars to Earth' }],
-  moon: [{ at: () => _t.set(-300 * Math.sin(1.42), 27, -300 * Math.cos(1.42)), up: 0, say: 'Click! A picture of Earth. That\'s home!' },
-    { at: () => _t.set(24, 2, -30), up: 0, say: 'Click! The gray hills. From the Moon, a picture gets to Earth in about one second' }] };
+  mars: [{ at: () => rover.pos, up: 1.2, fov: 20, name: 'The Mars rover', say: 'Click! Skyfly takes a picture of the rover. Hello, friend!' },
+    { at: () => rover.oldAt, up: 0, fov: 10, name: 'The old rover', say: 'Click! A picture of the old rover, asleep under the dust' },
+    { at: () => _t.set(26, 4, -34), up: 0, fov: 45, name: 'The red hills', say: 'Click! The red hills. A picture takes minutes to get from Mars to Earth' }],
+  moon: [{ at: () => _t.set(-300 * Math.sin(1.42), 27, -300 * Math.cos(1.42)), up: -4, fov: 13, name: 'Earth, from the Moon', say: 'Click! A picture of Earth. That\'s home!' },
+    { at: () => _t.set(24, 2, -30), up: 1, fov: 24, name: 'The gray hills', say: 'Click! The gray hills. From the Moon, a picture gets to Earth in about one second' }] };
 const _t = new THREE.Vector3(), _tl = new THREE.Vector3();
 function runSnap(dt) {                             // true while Skyfly is stopped for a picture
   if (sky.snapT < 0) {
@@ -543,8 +544,42 @@ function aim(dt) {                                 // the camera head turns to f
   sky.pan += (want - sky.pan) * Math.min(1, dt * 2.5);
   head.rotation.y = sky.pan;
 }
-function takePhoto() {                             // click!
-  sky.photos++; sfx.click();
+function takePhoto() {                             // click! (the picture itself is drawn right after this frame, by drawSnap)
+  sky.photos++; snapWant = true; sfx.click();
+}
+// A real picture of what's in front of the camera head, shown as a small print in the corner. Drawn once, at twice
+// the size, and shrunk, so edges come out smooth. The main loop calls this right after it draws the ground.
+// (The tests only draw the last frame of each step, so a test has to step one frame at a time past the click.)
+const SNAP_W = 800, SNAP_H = 600;
+let snapWant = false, snapHide = 0, snapEl = null, snapRT = null, snapCam = null;
+function drawSnap() {
+  if (!snapWant) return;
+  snapWant = false;
+  if (!sky.plan || !sky.target) return;
+  if (!snapEl) {
+    snapRT = new THREE.WebGLRenderTarget(SNAP_W, SNAP_H); snapCam = new THREE.PerspectiveCamera(40, SNAP_W / SNAP_H, 0.1, 1500);
+    snapEl = document.createElement('figure'); snapEl.id = 'snap'; snapEl.append(document.createElement('canvas'), document.createElement('figcaption'));
+    snapEl.firstChild.width = SNAP_W / 2; snapEl.firstChild.height = SNAP_H / 2; document.body.appendChild(snapEl);
+  }
+  rig.head.getWorldPosition(snapCam.position);
+  snapCam.fov = sky.target.fov; snapCam.updateProjectionMatrix();     // it zooms, like a real rover's camera
+  _tl.copy(sky.target.at()); _tl.y += sky.target.up; snapCam.lookAt(_tl);
+  const info = renderer.info.autoReset, sh = renderer.shadowMap.autoUpdate, px = new Uint8Array(SNAP_W * SNAP_H * 4);
+  renderer.info.autoReset = false; renderer.shadowMap.autoUpdate = false; rig.head.visible = false;
+  renderer.setRenderTarget(snapRT); renderer.render(groundScene(), snapCam);
+  renderer.readRenderTargetPixels(snapRT, 0, 0, SNAP_W, SNAP_H, px);
+  renderer.setRenderTarget(null); rig.head.visible = true; renderer.shadowMap.autoUpdate = sh; renderer.info.autoReset = info;
+  const full = document.createElement('canvas'); full.width = SNAP_W; full.height = SNAP_H;
+  const g = full.getContext('2d'), img = g.createImageData(SNAP_W, SNAP_H), row = SNAP_W * 4;
+  for (let y = 0; y < SNAP_H; y++) img.data.set(px.subarray((SNAP_H - 1 - y) * row, (SNAP_H - y) * row), y * row);   // it's read from the bottom up
+  for (let k = 3; k < img.data.length; k += 4) img.data[k] = 255;
+  g.putImageData(img, 0, 0);
+  const c = snapEl.firstChild.getContext('2d'); c.imageSmoothingQuality = 'high'; c.drawImage(full, 0, 0, SNAP_W / 2, SNAP_H / 2);
+  snapEl.lastChild.textContent = sky.target.name; snapEl.hidden = false; snapHide = 7;
+  sky.seen = varied(px);
+}
+function varied(px) {                              // for the tests: how many different colors are in the picture
+  const s = new Set(); for (let k = 0; k < px.length; k += 4000) s.add((px[k] >> 3) << 10 | (px[k + 1] >> 3) << 5 | px[k + 2] >> 3); return s.size;
 }
 function step(d) {                                 // play the change forward or backward, with the soft clacks
   const t0 = sky.t; sky.t = Math.max(0, Math.min(sky.plan.T, sky.t + d));
@@ -691,7 +726,7 @@ function runPlanets(dt, sp) {
   }
   roverK += ((mars.active && !onMoon() && S.on.rover && mars.phase === 'ground' ? 1 : 0) - roverK) * Math.min(1, dt * 0.8);
   window.__planets = { at, to, travel: travelT, mars: mars.phase || (mars.active ? 'ground' : null), onMars: mars.active && !onMoon(), onMoon: mars.active && onMoon(), walkersOut: out,
-    skyfly: { on: !!sky.plan, t: sky.t, T: sky.plan ? sky.plan.T : 0, a: sky.a, v: sky.v, tracks: sky.laid[mars.where], cam: sky.plan && sky.t >= sky.plan.T ? 1 : 0, photos: sky.photos, snap: sky.snapT }, prints: moonG.laid,
+    skyfly: { on: !!sky.plan, t: sky.t, T: sky.plan ? sky.plan.T : 0, a: sky.a, v: sky.v, tracks: sky.laid[mars.where], cam: sky.plan && sky.t >= sky.plan.T ? 1 : 0, photos: sky.photos, snap: sky.snapT, seen: sky.seen || 0, photoUp: !!snapEl && !snapEl.hidden }, prints: moonG.laid,
     storm: { on: !!S.meteorStorm, hits: storm ? storm.hits : 0, bumps: storm ? storm.bumps : 0, fired: storm ? storm.fired : 0, modes: walkers.map(w => w.mode), piles: walkers.map(w => w.pileK || 0), falling: storm ? storm.rocks.filter(r => r.mode === 'fall').length : 0,
       nearest: storm ? Math.min(...storm.rocks.filter(r => r.mode !== 'idle').map(r => Math.min(...walkers.map(w => r.to.distanceTo(w.pos)))), 99) : 99 },
     working: walkers.filter(w => w.mode === 'work').length,
@@ -755,4 +790,4 @@ const marsView = () => { const p = skyPose(); return { on: mars.active, y: mars.
   follow: walkers.some(w => w.mode !== 'in') ? 0.3 : sky.plan ? 0.2 : 0.5, sk: skyK, fx: sky.plan ? p.x : 0, fz: sky.plan ? p.z : 0, yaw: sky.plan ? p.yaw : 0 }; };
 
 wear('earth');
-export { PLANETS, goPlanet, landAction, marsView, meteorButton, planetCaption, planetUI, runPlanets, stormButton };
+export { PLANETS, drawSnap, goPlanet, landAction, marsView, meteorButton, planetCaption, planetUI, runPlanets, stormButton };
