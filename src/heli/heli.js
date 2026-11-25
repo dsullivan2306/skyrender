@@ -1,13 +1,14 @@
 import * as THREE from 'three';
-import { grass, groundSet, reduceMotion, scene, stage } from '../world/setup.js';
+import { camera, grass, groundSet, reduceMotion, renderer, scene, stage } from '../world/setup.js';
 import { makeSuitcase, walkPose } from '../people/people.js';
 import { birdSet, cloudSet, puff } from '../scenery/sky.js';
 import { season } from '../scenery/seasons.js';
 import { sfx } from '../audio/audio.js';
 import { S, c01, ease, lerpJ, rig, say, settled, sm } from '../game/state.js';
 import { quietly } from '../rig/rig.js';
-import { EDGE, HOSP, LAKE, MTN, buildValley, groundAt, runValley, stillTrees } from './valley.js';
+import { EDGE, HOSP, LAKE, MTN, YARD, buildValley, groundAt, runValley, stillTrees } from './valley.js';
 import { buildControls } from './controls.js';
+import { buildHospital } from './hospital.js';
 import { buildCockpit, crewMember, drawCockpit, greet, runCockpit, tapCockpit } from './cockpit.js';
 
 // Jasper's idea: "Skyrender is going to be a great amazing helicopter and the crew will be boarding just like the plane
@@ -21,6 +22,11 @@ import { buildCockpit, crewMember, drawCockpit, greet, runCockpit, tapCockpit } 
 const C = { throttle: 0, lever: 0, sx: 0, sy: 0, pedal: 0, touched: false };
 const h = { x: 0, z: 0, y: 0, vx: 0, vz: 0, vy: 0, yaw: 0, vyaw: 0, rpm: 0, spin: 0, tailSpin: 0, pitch: 0, roll: 0, up: 0, agl: 0, landed: true, floor: { y: 0, kind: 'pad', place: 'home' }, auto: null,
   crewIn: false, board: null, inside: false, doorK: 0, wind: 0, t: 0, flew: false, wasUp: false, up2: 0, seen: {}, edge: 0, rise: 0, k: 0, sinkT: 0 };
+let H = null;          // inside the hospital (hospital.js)
+// Going in and out: shrink, fade, in, fadeout, grow. While he's in, h.x and h.z are inside the hospital; `back` remembers outside.
+const R = { phase: null, t: 0, s: 1, back: null };
+const TINY = 0.1;
+const indoors = () => R.phase === 'in';
 let V = null, ui = null, K = null, dust = null, blob = null, crew = null, crewSet = null;
 const FULL_TURN = Math.PI * 2;
 const on = () => S.plan.to === 7;
@@ -41,20 +47,24 @@ function build() {
 }
 // back on the home pad, blades stopped
 function heliReset() {
+  if (R.phase) { setRoom(false); fadeEl().style.opacity = '0'; } R.phase = null; R.s = 1; R.back = null; if (flyerRef) flyerRef.scale.setScalar(1);
   Object.assign(h, { x: 0, z: 0, y: 0, vx: 0, vz: 0, vy: 0, yaw: 0, vyaw: 0, rpm: 0, spin: 0, tailSpin: 0, pitch: 0, roll: 0, agl: 0, landed: true, auto: null, board: null, inside: false, wind: 0, flew: false, wasUp: false, edge: 0, rise: 0, sinkT: 0, crewIn: on() ? h.crewIn : false });
   h.floor = { y: 0, kind: 'pad', place: 'home' };
   Object.assign(C, { throttle: 0, lever: 0, sx: 0, sy: 0, pedal: 0, touched: false });
 }
-const home = () => Math.hypot(h.x, h.z) < 0.02 && h.y < 0.001;
-const nice = { home: 'the home landing pad', hospital: 'the hospital roof', mountain: 'the top of Lookout Mountain' };
+const home = () => !R.phase && Math.hypot(h.x, h.z) < 0.02 && h.y < 0.001;
+const nice = { home: 'the home landing pad', hospital: 'the hospital roof', yard: 'the hospital landing pad', mountain: 'the top of Lookout Mountain' };
 const ARRIVE = {
   home: ['Home again! A perfect landing', 'Back on the home pad. Nice flying, Captain Jasper!'],
   hospital: ['Landed on the hospital roof! Helicopters can land right where help is needed', 'The white cross and the red H tell pilots: hospital here'],
+  yard: ['Landed in front of the hospital! Tap Fly in the hospital to go inside', 'Back at the hospital\'s front doors'],
   mountain: ['On top of Lookout Mountain! On tall mountains the air is thin, so blades have to work harder', 'The windsock shows which way the wind blows. Pilots always look for it']
 };
 
 function heliAct(id) {
   if (!flying() || S.pending !== null) return;
+  if (id === 'hosp') { if (indoors()) goOut(H.roof); else if (canGoIn()) goIn(); return; }
+  if (id === 'use') { if (indoors()) H.use(); return; }
   if (id === 'crew') startBoard();
   if (id === 'inside') seat(S.on.inside);
   if (id === 'tail') say(S.on.tail ? (h.agl > 0.3 ? 'No tail blades! The big blades spin one way, so the body spins the other way' : 'Tail blades stopped. Take off and see what happens!') : 'Tail blades on. They push sideways to hold the body still', 3.6);
@@ -65,7 +75,7 @@ function heliAct(id) {
 // ---------- the crew: they walk up from the front, staying low, and climb in by the side door ----------
 const STEP = 0.8, WALK = 5.6;
 function startBoard() {
-  if (h.board) return;
+  if (h.board || R.phase) return;
   if (!h.landed) { say('Land first, then the crew can walk out', 2.4); return; }
   if (!h.floor.place || h.floor.place === 'lake') { say('Find a landing pad with an H for the crew', 2.6); return; }
   h.board = { dir: h.crewIn ? -1 : 1, t: 0, wait: true }; C.throttle = 0; C.lever = 0;
@@ -99,7 +109,7 @@ function runBoard(dt) {
 }
 // ---------- sitting inside ----------
 const fadeEl = () => document.getElementById('cabFade');
-function seat(inside) { if (h.inside === inside) return; h.inside = inside; S.on.inside = inside; K.yaw = 0; K.pitch = -0.16; if (inside) say(h.crewIn ? 'In the pilot\'s seat. Drag to look around, even back at the crew' : 'In the pilot\'s seat. The crew can still board', 3); else say('Looking from outside', 1.4); press('inside', inside); }
+function seat(inside) { if (h.inside === inside) return; h.inside = inside; S.on.inside = inside; K.yaw = 0; K.pitch = -0.16; if (inside) say(indoors() ? 'In the pilot\'s seat, flying down the hospital hall' : h.crewIn ? 'In the pilot\'s seat. Drag to look around, even back at the crew' : 'In the pilot\'s seat. The crew can still board', 3); else say('Looking from outside', 1.4); press('inside', inside); }
 function press(id, v) { const b = document.querySelector(`#acts [data-id="${id}"]`); if (b) b.setAttribute('aria-pressed', String(v)); }
 function enter() { const f = fadeEl(); f.style.opacity = '1'; setTimeout(() => { if (flying() && S.pending === null) { h.inside = true; S.on.inside = true; press('inside', true); K.yaw = 0; K.pitch = -0.16; } f.style.opacity = '0'; }, 420); }
 const heliInside = () => h.inside && flying();
@@ -115,6 +125,7 @@ function heliPointer(kind, e) {          // dragging turns your head; a tap gree
 // more tip on each blade. Close to the ground the pushed-down air makes a cushion that helps.
 const pull = () => h.rpm * h.rpm * C.lever * 2 * (1 + 0.2 * Math.exp(-h.agl / 1.6));
 function autopilot(dt) {
+  if (R.phase) { if (indoors() && !H.ride && !H.xr) goOut(H.roof); return; }       // out of the hospital first
   const d = Math.hypot(h.x, h.z), a = h;
   C.sx = C.sy = C.pedal = 0;
   if (a.board) { a.board.wait = false; return; }
@@ -154,21 +165,22 @@ function fly(dt) {
   if (off) h.vy = Math.max(h.vy, -3.1);
   const gap = h.y - h.floor.y;
   if (gap < 3) h.vy = Math.max(h.vy, -0.9 - gap * 1.1);                           // always a soft landing
-  if (h.y > 30 && h.vy > 0) h.vy *= Math.max(0, 1 - (h.y - 30) / 6);
+  if (!indoors() && h.y > 30 && h.vy > 0) h.vy *= Math.max(0, 1 - (h.y - 30) / 6);
   // forward, back and sideways: the blades lean, so they pull that way too
   const fx = Math.sin(h.yaw), fz = Math.cos(h.yaw), rx = -fz, rz = fx;           // which way is forward, and which way is right
   const bite = c01(h.rpm * 1.4 - 0.3);
-  const ax = (fx * C.sy * 9.2 + rx * C.sx * 6.4) * bite, az = (fz * C.sy * 9.2 + rz * C.sx * 6.4) * bite, push = C.sx || C.sy ? 0.68 : 1.15;
-  h.vx += (ax - h.vx * push) * dt; h.vz += (az - h.vz * push) * dt;
+  const ax = (fx * C.sy * 9.2 + rx * C.sx * 6.4) * bite, az = (fz * C.sy * 9.2 + rz * C.sx * 6.4) * bite, push = C.sx || C.sy ? 0.68 : 1.15, room = indoors() ? 0.6 : 1;      // slower indoors
+  h.vx += (ax * room - h.vx * push) * dt; h.vz += (az * room - h.vz * push) * dt;
   // look ahead: rise over hills, trees and roofs instead of bumping into them
   let need = -1; const sp = Math.hypot(h.vx, h.vz);
-  for (const q of [0.35, 0.8, 1.3]) { const g = groundAt(V, h.x + h.vx * q, h.z + h.vz * q), up = g.y + (g.kind === 'trees' ? 0.7 : g.kind === 'water' ? 1.1 : sp > 2.5 ? 1.2 : 0); if (g.y > h.floor.y + 0.5 || g.kind === 'trees') need = Math.max(need, up); }
+  for (const q of [0.35, 0.8, 1.3]) { const g = gnd(h.x + h.vx * q, h.z + h.vz * q), up = g.y + (g.kind === 'trees' || g.kind === 'hold' ? 0.7 : g.kind === 'water' ? 1.1 : sp > 2.5 ? 1.2 : 0); if (g.y > h.floor.y + 0.5 || g.kind === 'trees' || g.kind === 'hold') need = Math.max(need, up); }
   h.rise += ((need > h.y + 0.05 ? 1 : 0) - h.rise) * Math.min(1, dt * 4);
   if (need > h.y) { h.y += Math.min(need - h.y, Math.max(1.5, (need - h.y) * 2.2) * dt); const slow = c01((need - h.y) / 4); h.vx *= 1 - slow * Math.min(1, dt * 4.5); h.vz *= 1 - slow * Math.min(1, dt * 4.5); h.vy = Math.max(h.vy, 0); }
   // the edge of the valley: turn back gently
-  const r = Math.hypot(h.x, h.z); h.edge += ((r > EDGE - 6 ? 1 : 0) - h.edge) * Math.min(1, dt * 3);
+  const r = indoors() ? 0 : Math.hypot(h.x, h.z); h.edge += ((r > EDGE - 6 ? 1 : 0) - h.edge) * Math.min(1, dt * 3);
   if (r > EDGE - 8) { const k = (r - (EDGE - 8)) * 1.6; h.vx -= h.x / r * k * dt * 3; h.vz -= h.z / r * k * dt * 3; }
   h.x += h.vx * dt; h.z += h.vz * dt; h.y += h.vy * dt;
+  if (indoors()) H.bound(dt);
   // turning: the pedals change how hard the tail blades push. Going fast, a sideways push makes a banked turn.
   const ahead = h.vx * fx + h.vz * fz, tailOff = S.on.tail;
   const wantYaw = (tailOff ? -0.95 * c01(h.rpm) : -C.pedal * 1.05 * c01(h.rpm * 1.5)) - C.sx * c01(Math.abs(ahead) / 9) * 0.75;
@@ -177,21 +189,24 @@ function fly(dt) {
   const slip = h.vx * rx + h.vz * rz;
   h.pitch += (C.sy * 0.2 * bite + ahead * 0.006 - h.pitch) * Math.min(1, dt * 3.5); h.roll += (C.sx * 0.2 * bite + slip * 0.006 - h.roll) * Math.min(1, dt * 3.5);
   // touching down
-  h.floor = groundAt(V, h.x, h.z);
-  const soft = h.floor.y + (h.floor.kind === 'water' ? 1.0 : h.floor.kind === 'trees' ? 0.7 : 0);
+  h.floor = gnd(h.x, h.z);
+  const soft = h.floor.y + (h.floor.kind === 'water' ? 1.0 : h.floor.kind === 'trees' || h.floor.kind === 'hold' ? 0.7 : 0);
   if (h.y <= soft) {
     if (h.y < soft - 0.02) h.y += Math.min(soft - h.y, 3 * dt); else h.y = soft;
     h.vy = Math.max(h.vy, 0);
     if (h.floor.kind === 'water') { h.sinkT += dt; if (h.sinkT > 0.4 && L < 1) { C.lever = Math.max(C.lever, 0.5); C.throttle = Math.max(C.throttle, 0.95); } }
-    else if (h.floor.kind === 'trees') { if (L < 1) { C.lever = Math.max(C.lever, 0.5); C.throttle = Math.max(C.throttle, 0.95); } }
+    else if (h.floor.kind === 'trees' || h.floor.kind === 'hold') { if (L < 1) { C.lever = Math.max(C.lever, 0.5); C.throttle = Math.max(C.throttle, 0.95); } }
     else if (Math.hypot(h.vx, h.vz) < 1.6 || L < 0.9) {
       h.landed = true; h.y = h.floor.y; sfx.lock(); S.stompK = Math.max(S.stompK, 0.5); C.sx = C.sy = 0;
-      const p = h.floor.place, lines = p && ARRIVE[p]; if (lines) { h.seen[p] = (h.seen[p] || 0) + 1; say(lines[(h.seen[p] - 1) % lines.length], 4); } else say(h.off ? 'Down softly, with no engine at all!' : 'A soft landing', 2.4);
+      const p = h.floor.place, lines = p && ARRIVE[p]; if (indoors()) { if (p) say(h.floor.line, 3); } else if (lines) { h.seen[p] = (h.seen[p] || 0) + 1; say(lines[(h.seen[p] - 1) % lines.length], 4); } else say(h.off ? 'Down softly, with no engine at all!' : 'A soft landing', 2.4);
     }
   } else h.sinkT = 0;
   h.off = off;
 }
 function heliCaption() {
+  if (R.phase === 'shrink' || R.phase === 'fade') return 'Shrinking to toy size, so its wind is as soft as a fan';
+  if (R.phase === 'fadeout' || R.phase === 'grow') return 'Growing back to full size';
+  if (indoors()) return H.caption();
   if (h.auto) return 'Autopilot: flying home to the landing pad';
   if (h.board) return h.board.wait ? 'Waiting for the blades to stop, so the crew is safe' : h.board.dir > 0 ? (h.board.t < 4 ? 'The crew bends low and walks up from the front' : 'Over the skid and in through the side door') : 'The crew climbs out';
   const rpm = h.rpm, L = pull();
@@ -212,6 +227,7 @@ function heliCaption() {
   if (h.floor.place === 'lake' && h.agl < 5) return 'Blade wind pushes rings across Mirror Lake. The ducks scoot away';
   const fx = Math.sin(h.yaw), fz = Math.cos(h.yaw), ahead = h.vx * fx + h.vz * fz, slip = -h.vx * fz + h.vz * fx, sp = Math.hypot(h.vx, h.vz);
   if (Math.hypot(h.x - HOSP.x, h.z - HOSP.z) < 12 && h.y > HOSP.h) return 'Over the hospital. Ease Lift down to land on the roof';
+  if (Math.hypot(h.x - YARD.x, h.z - YARD.z) < YARD.r && h.agl < 12) return 'Over the hospital\'s front pad. Ease Lift down to land';
   if (Math.hypot(h.x - MTN.x, h.z - MTN.z) < 8 && h.y > MTN.h) return 'Over Lookout Mountain. Ease Lift down to land on the H';
   if (rpm < 0.8 && h.vy < -0.5) return 'Slower blades pull less. Sinking!';
   if (ahead < -2.2) return 'Flying backward! Airplanes can\'t do that';
@@ -244,6 +260,35 @@ function runDust(dt) {
   }
 }
 
+// ---------- into the hospital and out again ----------
+const gnd = (x, z) => indoors() ? H.ground(x, z) : groundAt(V, x, z);
+// Jasper asked for the button whenever it lands at the hospital: on the roof, on the front pad, or on the grass around it
+const canGoIn = () => !R.phase && h.landed && !h.board && !h.auto && S.pending === null && h.floor.kind !== 'water' && Math.abs(h.x - HOSP.x) < HOSP.w / 2 + 10 && h.z > HOSP.z - HOSP.d / 2 - 18 && h.z < HOSP.z + HOSP.d / 2 + 8;
+function goIn() {
+  if (S.on.door) { S.on.door = false; press('door', false); } if (S.on.tail) { S.on.tail = false; press('tail', false); }
+  R.phase = 'shrink'; R.t = 0; R.roof = h.floor.place === 'hospital'; C.lever = Math.min(C.lever, 0.3); C.sx = C.sy = 0; sfx.size(false);
+  say('Skyrender shrinks to toy size, so its wind is as soft as a fan', 3);
+}
+function goOut(roof) { if (!indoors()) return; R.phase = 'fadeout'; R.t = 0; R.roof = roof; H.exitTo = null; H.close(); if (roof) { sfx.ding(); say('Going up! Roof, please', 2.2); } else say('Out through the front doors', 2); fadeEl().style.opacity = '1'; }
+// Skyrender itself moves into the hospital's own scene, and back
+function setRoom(inside) {
+  const to = inside ? H.scene : scene; if (!flyerRef || flyerRef.parent === to) return;
+  to.add(flyerRef); if (!inside && H) H.close();
+}
+function runRoom(dt) {
+  R.t += dt;
+  if (R.phase === 'shrink') { R.s = 1 - (1 - TINY) * ease(c01(R.t / 1.7)); if (R.t > 1.9) { R.phase = 'fade'; R.t = 0; fadeEl().style.opacity = '1'; } }
+  else if (R.phase === 'fade' && R.t > 0.45) {
+    if (!H) quietly(() => { H = buildHospital(h, C, say, () => flyerRef, () => { const d = rig.heli.disc, v = d.visible; d.visible = false; return () => { d.visible = v; }; }); });
+    R.back = { x: h.x, z: h.z, yaw: h.yaw }; R.phase = 'in'; R.s = 1; H.enter(R.roof); C.lever = Math.min(C.lever, 0.3); h.floor = H.ground(h.x, h.z); setRoom(true); fadeEl().style.opacity = '0';
+    if (R.roof) sfx.ding(); say(R.roof ? 'Ding! Down the elevator, four, three, two, one. Everything looks huge!' : 'The doors slide open. Everything looks huge!', 4);
+  } else if (R.phase === 'fadeout' && R.t > 0.45) {
+    const spot = R.roof ? { x: HOSP.x, z: HOSP.z } : H.roof ? { x: YARD.x, z: YARD.z } : R.back;
+    Object.assign(h, { x: spot.x, z: spot.z, yaw: R.back.yaw, vx: 0, vz: 0, vy: 0, vyaw: 0, pitch: 0, roll: 0, landed: true }); R.back = null; R.phase = 'grow'; R.t = 0; R.s = TINY; C.lever = Math.min(C.lever, 0.3); H.ride = H.xr = null;
+    h.floor = groundAt(V, h.x, h.z); h.y = h.floor.y; setRoom(false); fadeEl().style.opacity = '0'; sfx.size(true);
+  } else if (R.phase === 'grow') { R.s = TINY + (1 - TINY) * ease(c01(R.t / 1.5)); if (R.t > 1.6) { R.phase = null; R.s = 1; say('Full size again!', 1.8); sfx.lock(); } }
+}
+
 // ---------- every frame ----------
 function runHeli(dt, sdt, live) {
   const want = on() && !S.parkState ? 1 : 0;
@@ -253,18 +298,21 @@ function runHeli(dt, sdt, live) {
   h.t += dt;
   const playing = on() && live, busy = S.pending !== null || h.auto;
   if (S.pending !== null && on()) { h.auto = 'home'; if (h.inside) seat(false); }
+  if (R.phase) runRoom(dt);
+  if (flyerRef) flyerRef.scale.setScalar(1);                   // core measures the toy at full size; placeHeli shrinks it
   if (on() && S.parkState) { h.inside = false; }
   if (playing) ui.readKeys(dt);
   if (playing || (on() && S.pending !== null)) {
-    h.floor = groundAt(V, h.x, h.z);
+    h.floor = gnd(h.x, h.z);
     // the blades speed up and slow down gradually: they're heavy
     const airUp = !h.landed && C.throttle < h.rpm ? 0.6 : 0;                      // in the air, the wind rushing past keeps them turning
     const goal = Math.max(C.throttle, airUp), rate = h.auto ? 0.5 : goal > h.rpm ? 0.2 : h.landed ? 0.26 : 0.1;
     const before = h.rpm; h.rpm += Math.max(-rate * sdt, Math.min(rate * sdt, goal - h.rpm)); if (h.rpm < 0.002 && goal === 0) h.rpm = 0;
     if (before === 0 && h.rpm > 0) sfx.heliStart();
-    if (busy) autopilot(sdt); else fly(sdt);
+    if (busy) autopilot(sdt); else if (!R.phase || (indoors() && !H.ride)) fly(sdt); else if (h.landed) { h.y = h.floor.y; h.pitch *= 1 - Math.min(1, dt * 5); h.roll *= 1 - Math.min(1, dt * 5); }
     h.agl = Math.max(0, h.y - h.floor.y);
     runBoard(sdt);
+    if (indoors()) { H.run(sdt, { night: ease(c01(S.nightK)), camera: h.inside && K.out ? K.out : camera }); if (H.exitTo && !busy) goOut(H.exitTo === 'roof'); }
   } else if (!on()) { h.doorK = Math.max(0, h.doorK - dt * 2); crewSet.visible = false; h.rpm = 0; }
   // the rotor: a brake brings it to rest pointing straight back, ready to fold
   const om = h.rpm * 19;
@@ -272,7 +320,7 @@ function runHeli(dt, sdt, live) {
   else { const rest = Math.ceil(h.spin / FULL_TURN - 1e-6) * FULL_TURN; if (C.throttle > 0.02 && on()) h.spin += Math.max(om, 0.5) * sdt; else h.spin = Math.min(rest, h.spin + Math.max(om, Math.min(2.2, (rest - h.spin) * 2.4 + 0.15)) * sdt); if (rest - h.spin < 1e-3 && C.throttle <= 0.02) h.spin = 0; }
   h.tailSpin += (S.on.tail && on() ? 0 : h.rpm * 24) * sdt; if (!on() || !settled()) { h.spin = 0; h.tailSpin = 0; }
   if (h.rpm === 0 && h.tailSpin) { h.tailSpin %= FULL_TURN; h.tailSpin *= 1 - Math.min(1, dt * 6); if (h.tailSpin < 0.002) h.tailSpin = 0; }
-  S.heliAway = on() && settled() && !S.parkState && (!home() || h.rpm > 0 || h.spin !== 0 || !!h.board || h.yaw !== 0 || (h.auto && S.pending !== null && h.rpm > 0));
+  S.heliAway = on() && settled() && !S.parkState && (!!R.phase || !home() || h.rpm > 0 || h.spin !== 0 || !!h.board || h.yaw !== 0 || (h.auto && S.pending !== null && h.rpm > 0));
   S.heliRpm = on() ? h.rpm : 0;
   if (S.pending === null && h.auto && home() && h.rpm === 0) h.auto = null;
 
@@ -281,29 +329,33 @@ function runHeli(dt, sdt, live) {
   h.k += (vk - h.k) * Math.min(1, dt * 2.2); if (h.k < 0.002 && !want) h.k = 0;
   V.set.visible = h.k > 0.002; V.set.scale.y = Math.max(0.001, sm(h.k));
   V.homeH.visible = on() && S.env.pad > 0.97;
-  const gx = on() ? h.x : 0, gz = on() ? h.z : 0;
+  const gx = on() ? (R.back ? R.back.x : h.x) : 0, gz = on() ? (R.back ? R.back.z : h.z) : 0;
   groundSet.position.x = -gx; groundSet.position.z = -gz; grass.position.x = gx; grass.position.z = gz;
   cloudSet.position.x = -gx * 0.3; cloudSet.position.z = -gz * 0.3; birdSet.position.x = -gx * 0.6; birdSet.position.z = -gz * 0.6;
-  h.wind = on() ? h.rpm * h.rpm * c01(1 - h.agl / 6.5) * (0.35 + 0.65 * c01(C.lever * 1.6)) : 0;
-  if (V.set.visible) runValley(V, dt, { x: h.x, z: h.z, wind: h.wind, place: h.floor.place }); else if (!on() && h.still !== 1) { stillTrees(); h.still = 1; }
+  h.wind = on() && !R.phase ? h.rpm * h.rpm * c01(1 - h.agl / 6.5) * (0.35 + 0.65 * c01(C.lever * 1.6)) : 0;
+  if (V.set.visible) runValley(V, dt, { x: gx, z: gz, wind: h.wind, place: R.back ? 'hospital' : h.floor.place }); else if (!on() && h.still !== 1) { stillTrees(); h.still = 1; }
   if (on()) h.still = 0;
   runDust(dt);
   // a soft shadow on the ground far below, so he can see where he'll land
-  const dark = on() ? c01((h.agl - 2) / 4) * 0.3 * (1 - 0.6 * S.nightK) : 0; blob.visible = dark > 0.01;
+  const dark = on() && !R.phase ? c01((h.agl - 2) / 4) * 0.3 * (1 - 0.6 * S.nightK) : 0; blob.visible = dark > 0.01;
   if (blob.visible) { blob.material.opacity = dark; blob.position.set(0, h.floor.y + 0.09, 0.4); const b = 1.7 + h.agl * 0.05; blob.scale.set(b, 1, b * 1.35); }
 
   // what's on the screen
-  const show = playing && S.pending === null && !h.auto && !h.board;
+  const show = playing && S.pending === null && !h.auto && !h.board && (!R.phase || (indoors() && !H.ride && !H.xr));
   const pct = Math.round(h.rpm * 100);
   ui.draw(show, { blades: pct + '%', lift: C.lever > 0.53 ? 'Up' : C.lever < 0.47 ? 'Down' : 'Hover' });
+  if (on()) document.body.classList.toggle('in-heli', show || !!R.phase);         // no scrubber while it's in the hospital
   if (on()) {
     const set = (id, f) => { const b = document.querySelector(`#acts [data-id="${id}"]`); if (b) f(b); };
-    set('crew', b => { const t = h.crewIn ? 'Crew gets off' : 'Board the crew'; if (b.textContent !== t) b.textContent = t; b.hidden = !h.landed || !!h.board || !!h.auto; });
+    set('crew', b => { const t = h.crewIn ? 'Crew gets off' : 'Board the crew'; if (b.textContent !== t) b.textContent = t; b.hidden = !h.landed || !!h.board || !!h.auto || !!R.phase; });
+    set('hosp', b => { const t = indoors() ? 'Go outside' : 'Fly in the hospital'; if (b.textContent !== t) b.textContent = t; b.hidden = indoors() ? !!H.ride || !!H.xr || !!h.auto : !canGoIn(); });
+    set('use', b => { const t = indoors() && !h.auto ? H.label() : null; b.hidden = !t; if (t && b.textContent !== t) b.textContent = t; });
     set('inside', b => { b.hidden = !!h.board; });
-    set('door', b => { b.hidden = !!h.board || !h.landed; if (b.hidden && S.on.door) { S.on.door = false; press('door', false); } });
+    set('tail', b => { b.hidden = !!R.phase; });
+    set('door', b => { b.hidden = !!h.board || !h.landed || !!R.phase; if (b.hidden && S.on.door) { S.on.door = false; press('door', false); } });
     set('fhome', b => { b.hidden = (h.landed && h.floor.place === 'home') || !!h.auto; });
   }
-  if (heliInside()) runCockpit(K, dt, { rpm: h.rpm, spin: h.spin, agl: h.agl, speed: Math.hypot(h.vx, h.vz), roll: h.roll, pitch: h.pitch, yaw: h.yaw, x: h.x, z: h.z, crewIn: h.crewIn, t: h.t, still: reduceMotion }, C, ease(c01(S.nightK)), flyerRef);
+  if (heliInside()) runCockpit(K, dt, { rpm: h.rpm, spin: h.spin, agl: h.agl * (indoors() ? TINY : 1), speed: Math.hypot(h.vx, h.vz) * (indoors() ? TINY : 1), roll: h.roll, pitch: h.pitch, yaw: h.yaw, x: gx, z: gz, crewIn: h.crewIn, t: h.t, still: reduceMotion }, C, ease(c01(S.nightK)), flyerRef);
 }
 let flyerRef = null;
 // after the rig is posed: the blades spin, sag, lift and twist
@@ -325,17 +377,19 @@ function placeHeli(flyer, beam) {
   flyerRef = flyer;
   if (!V || !on()) { if (flyer.rotation.order !== 'XYZ') flyer.rotation.order = 'XYZ'; return; }
   flyer.rotation.order = 'YXZ';
-  const bob = h.landed || reduceMotion ? 0 : Math.sin(h.t * 1.3) * 0.05, mz = 0.75;
+  const bob = h.landed || reduceMotion ? 0 : Math.sin(h.t * 1.3) * 0.05, mz = 0.75, k = R.s; flyer.scale.setScalar(k);
   flyer.position.y += h.y + bob; flyer.rotation.y += h.yaw; flyer.rotation.x += h.pitch; flyer.rotation.z += h.roll + (h.landed || reduceMotion ? 0 : Math.sin(h.t * 0.9) * 0.008);
-  flyer.position.x += -Math.sin(h.yaw) * mz; flyer.position.z += mz - Math.cos(h.yaw) * mz;
+  flyer.position.x += -Math.sin(h.yaw) * mz * k; flyer.position.z += mz - Math.cos(h.yaw) * mz * k;
   if (settled() && !reduceMotion && h.rpm > 0.1 && h.rpm < 0.5 && h.landed) flyer.position.x += Math.sin(h.t * 31) * 0.006;        // it rocks a little as the blades get going
   const f = [Math.sin(h.yaw), Math.cos(h.yaw)];
   beam.position.set(f[0] * 2.4, h.y + 0.5, f[1] * 2.4); beam.target.position.set(f[0] * 11, Math.max(h.floor.y, h.y - 5), f[1] * 11);
   flyer.updateMatrixWorld();
 }
-function heliView() { const up = on() && settled() && !S.parkState; return { on: up, chase: up && (h.rpm > 0.3 || !h.landed) && !S.on.tail, yaw: h.yaw, zoom: up ? c01(h.agl / 6) * 0.35 : 0 }; }
-function drawHeli() { drawCockpit(K, scene); }
+function heliView() { const up = on() && settled() && !S.parkState; return { on: up, chase: up && (indoors() || h.rpm > 0.3 || !h.landed) && !S.on.tail, yaw: h.yaw, room: indoors(), phi: indoors() ? 1.33 : 1.18, theta: indoors() ? H.view() : undefined, keep: p => H.keep(p), zoom: up ? (indoors() ? 0.7 : c01(h.agl / 6) * 0.35) - 0.5 * (1 - R.s) : 0 }; }
+function drawHeli() { drawCockpit(K, indoors() ? H.scene : scene); if (indoors()) H.draw(); }
+const heliRoom = () => indoors(), heliLook = t => indoors() ? H.look(t) : t;
+function drawRoom() { renderer.render(H.scene, camera); H.draw(); }
 
-window.__heli = { h, C, get crew() { return crew ? crew.map(p => ({ v: p.visible, x: p.position.x, z: p.position.z })) : []; }, get look() { return K ? { yaw: K.yaw, pitch: K.pitch } : null; }, set look(v) { K.yaw = v.yaw; K.pitch = v.pitch; }, greet: i => greet(K.crew[i]), ground: (x, z) => groundAt(V, x, z), place: (x, y, z) => { h.x = x; h.z = z; h.y = y; h.landed = false; h.floor = groundAt(V, x, z); }, get dust() { return dust ? dust.filter(d => d.m.visible).length : 0; }, get rings() { return V ? V.rings.filter(r => r.visible).length : 0; }, get ducks() { return V ? V.ducks.map(d => [d.d.position.x, d.d.position.z]) : []; }, rig: rig.heli };
+window.__heli = { h, C, R, get hosp() { return H ? H.state() : null; }, get crew() { return crew ? crew.map(p => ({ v: p.visible, x: p.position.x, z: p.position.z })) : []; }, get look() { return K ? { yaw: K.yaw, pitch: K.pitch } : null; }, set look(v) { K.yaw = v.yaw; K.pitch = v.pitch; }, greet: i => greet(K.crew[i]), ground: (x, z) => groundAt(V, x, z), place: (x, y, z) => { h.x = x; h.z = z; h.y = y; h.landed = false; h.floor = groundAt(V, x, z); }, get dust() { return dust ? dust.filter(d => d.m.visible).length : 0; }, get rings() { return V ? V.rings.filter(r => r.visible).length : 0; }, get ducks() { return V ? V.ducks.map(d => [d.d.position.x, d.d.position.z]) : []; }, rig: rig.heli };
 
-export { drawHeli, heliAct, heliCaption, heliInside, heliPointer, heliPose, heliReset, heliView, placeHeli, runHeli };
+export { drawHeli, heliAct, heliCaption, heliInside, heliPointer, heliPose, heliLook, heliReset, heliRoom, heliView, drawRoom, placeHeli, runHeli };

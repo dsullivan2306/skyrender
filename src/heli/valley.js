@@ -10,6 +10,7 @@ import { makePerson, signTex } from '../people/people.js';
 const HOSP = { x: 4, z: 64, w: 20, d: 15, h: 12 };
 const MTN = { x: 64, z: 44, r: 24, top: 6.2, h: 22 };
 const LAKE = { x: 60, z: -62, r: 22 };
+const YARD = { x: 4, z: 45, r: 5.4 };   // the landing pad on the ground, by the hospital's front doors
 const EDGE = 128;                     // how far out the valley goes
 
 function buildValley() {
@@ -54,6 +55,9 @@ function buildValley() {
   const lampM = glow(new THREE.MeshStandardMaterial({ color: 0x8fd6a0, emissive: 0x3fe06a, emissiveIntensity: 0.6 }), 0.6);   // green edge lights, like real pads
   for (let k = 0; k < 12; k++) add(new THREE.SphereGeometry(0.1, 8, 6), lampM, Math.cos(k * 0.5236) * 6.2, HOSP.h + 0.1, Math.sin(k * 0.5236) * 6.2, hosp).castShadow = false;
   add(B(2.2, 2.2, 2.6), M(0xd6d0c2), -8.6, HOSP.h + 1.1, 4.6, hosp); add(B(0.08, 1.7, 1.2), M(0x5b7d98, 0.3), -7.46, HOSP.h + 0.9, 4.6, hosp);   // the elevator house
+  // a landing pad on the ground too, out in front of the doors
+  flatDisc(YARD.r, M(0x55585a, 0.95), 0, 0.03, YARD.z - HOSP.z, hosp); for (const [w, d] of [[2.6, 9], [9, 2.6]]) add(B(w, 0.014, d), white, 0, 0.04, YARD.z - HOSP.z, hosp); bigH(red, 0, 0.055, YARD.z - HOSP.z, 0.62, hosp);
+  add(B(3.4, 0.016, 7), M(0xb9b4a6, 0.95), 0, 0.026, -HOSP.d / 2 - 3.4, hosp);
   // nurses wait by the elevator with a rolling bed, well back from the blades
   const nurses = [[0x3f8a86, 0xd9a47a, 0x2d2a26, -6.6, 3.6], [0x3f8a86, 0x6b4630, 0x1d1b19, -6.9, 5.9]].map(([shirt, skin, hair, x, z]) => { const p = makePerson({ shirt, pants: shirt, skin, hair }); p.position.set(x, HOSP.h, z); p.rotation.y = 2.0; hosp.add(p); return p; });
   const bed = new THREE.Group(); bed.position.set(-7.2, HOSP.h, 2.2); hosp.add(bed);
@@ -138,6 +142,7 @@ function groundAt(V, x, z) {
     else { const u = Math.pow(Math.max(0, (mr - MTN.r) / (MTN.top - MTN.r)), 1 / 0.75); y = Math.max(y, MTN.h * u); kind = 'hill'; }
   }
   if (Math.abs(x - HOSP.x) < HOSP.w / 2 && Math.abs(z - HOSP.z) < HOSP.d / 2) { y = HOSP.h; kind = 'pad'; place = 'hospital'; }
+  if (Math.hypot(x - YARD.x, z - YARD.z) < YARD.r) { y = 0.05; kind = 'pad'; place = 'yard'; }
   if (Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 0.5) { y = 0.05; kind = 'water'; place = 'lake'; }
   if (kind === 'grass' || kind === 'hill') {
     for (const t of V.trees) if (Math.abs(t.x - x) < 2.6 && Math.abs(t.z - z) < 2.6) { y = Math.max(y, t.y + 3.7 * t.s); kind = 'trees'; }
@@ -177,4 +182,4 @@ function runValley(V, dt, o) {
 }
 function stillTrees() { for (const s of scrollers) if (s.obj.type === 'Group') s.obj.rotation.z = 0; }
 
-export { EDGE, HOSP, LAKE, MTN, buildValley, groundAt, runValley, stillTrees };
+export { EDGE, HOSP, LAKE, MTN, YARD, buildValley, groundAt, runValley, stillTrees };

@@ -43,6 +43,7 @@ await page.route('**fonts.g**', r => r.abort());
 // This only affects the tests; the game itself stays random and real-time.
 await page.addInitScript(() => {
   let t = 0; performance.now = () => t;
+  const RealDate = Date, T0 = RealDate.UTC(2026, 10, 25, 17); window.Date = class extends RealDate { constructor(...a) { a.length ? super(...a) : super(T0 + t); } static now() { return T0 + t; } };   // today is always the same day
   let seed = 20261115;
   Math.random = () => { seed = (seed + 0x6D2B79F5) | 0; let x = Math.imul(seed ^ (seed >>> 15), 1 | seed); x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x; return ((x ^ (x >>> 14)) >>> 0) / 4294967296; };
   const timers = []; let tid = 0;

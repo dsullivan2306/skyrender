@@ -51,7 +51,7 @@ const ACTIONS = [
   [{ id: 'horn', label: 'Air horn', press: true }, { id: 'smoke', label: 'Smokestacks' }, { id: 'tdoors', label: 'Open trailer' }, { id: 'jr', label: 'Launch Jr.' }, { id: 'lights', label: 'Lights' }, { id: 'inter', label: 'Interstate' }, { id: 'stop', label: 'Stop truck' }, { id: 'wreck', label: 'Crash!' }],
   [{ id: 'honk', label: 'Honk', press: true }, { id: 'plow', label: 'Plow' }, { id: 'spray', label: 'Spray' }, { id: 'moo', label: 'Animal sounds', press: true }, { id: 'cab', label: 'Open cab' }, { id: 'lights', label: 'Lights' }, { id: 'stop', label: 'Stop tractor' }],
   [],                          // the rover has no buttons of its own
-  [{ id: 'crew', label: 'Board the crew', press: true }, { id: 'inside', label: 'Sit inside' }, { id: 'door', label: 'Open door' }, { id: 'tail', label: 'Stop tail blades' }, { id: 'lights', label: 'Lights' }, { id: 'fhome', label: 'Fly home', press: true }]
+  [{ id: 'use', label: 'Use it', press: true }, { id: 'hosp', label: 'Fly in the hospital', press: true }, { id: 'crew', label: 'Board the crew', press: true }, { id: 'inside', label: 'Sit inside' }, { id: 'door', label: 'Open door' }, { id: 'tail', label: 'Stop tail blades' }, { id: 'lights', label: 'Lights' }, { id: 'fhome', label: 'Fly home', press: true }]
 ];
 
 const center = new THREE.Vector3();
@@ -497,7 +497,7 @@ function frame() {
   if (!dragging && idle > 2 && !reduceMotion && S.homeK < 0.01) {
     const hv = linked.heliView();
     if (hv.on && hv.chase) {                          // flying the helicopter: the camera follows behind its tail
-      const d = ((hv.yaw + Math.PI - 0.3 - theta) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI; theta += d * Math.min(1, dt * 1.8); phi += (1.18 - phi) * Math.min(1, dt * 0.6);
+      const d = (((hv.theta ?? hv.yaw + Math.PI - 0.3) - theta) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI; theta += d * Math.min(1, dt * 1.8); phi += (hv.phi - phi) * Math.min(1, dt * (hv.room ? 1.6 : 0.6));
     } else if (settled() && S.plan.to === 0 && sp > 0.5) {   // in space, the plane turns so the huge Moon is right behind it
       const tw = linked.marsView().on ? 1.25 : 0.6;     // on Mars, a side view of the door and the astronauts at work
       const d = ((tw - theta) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI; theta += d * Math.min(1, dt * 0.5);
@@ -522,8 +522,9 @@ function frame() {
     target3.x + rr * Math.sin(ph) * Math.sin(theta),
     target3.y + rr * Math.cos(ph),
     target3.z + rr * Math.sin(ph) * Math.cos(theta));
-  camera.lookAt(target3);
-  if (linked.cab.active) { linked.updateCabin(dt); renderer.render(linked.cabinScene, linked.cabinCam); } else if (linked.heliInside()) linked.drawHeli(); else if (linked.marsView().on) { renderer.render(linked.marsView().scene, camera); linked.drawSnap(); } else { renderer.render(scene, camera); linked.drawMoonViews(); }
+  if (linked.heliRoom()) linked.heliView().keep(camera.position);          // inside the hospital, stay inside its walls
+  camera.lookAt(linked.heliLook(target3));
+  if (linked.cab.active) { linked.updateCabin(dt); renderer.render(linked.cabinScene, linked.cabinCam); } else if (linked.heliInside()) linked.drawHeli(); else if (linked.heliRoom()) linked.drawRoom(); else if (linked.marsView().on) { renderer.render(linked.marsView().scene, camera); linked.drawSnap(); } else { renderer.render(scene, camera); linked.drawMoonViews(); }
   requestAnimationFrame(frame);
 }
 // Start the toy: called by main.js once every module is built and linked.

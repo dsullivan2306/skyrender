@@ -20,4 +20,6 @@ export const IDEAS = [
     when: '2026-11-23', what: 'Press Meteors, then land on the Moon: they keep falling. Tap Fight meteors to bump them away, or Astronauts stuck, then help them out' },
   { words: 'Skyrender is going to be a great amazing helicopter and the crew will be boarding just like the plane and I will control the flight and blade',
     when: '2026-11-24', what: 'Tap Helicopter. Board the crew, sit in the pilot\u2019s seat, and fly it yourself: you run the blades, the lift, the stick and the tail' },
+  { words: 'Whenever helicopter land on the ground of the hospital there will be a button that will allow the helicopter to be able to fly in the hospital there will be some stuff in the hospital that is going to be used as hospital stuff',
+    when: '2026-11-25', what: 'Land at the hospital and tap Fly in the hospital. Skyrender shrinks and flies inside. Land on things to use them: X-ray, scale, rolling bed, mail tubes and more' },
 ];
